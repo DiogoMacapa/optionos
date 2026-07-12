@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+:root {
+  /* ===== OptionOS Design Tokens — Dark mode (padrão) ===== */
+  --background: #0b0d10;
+  --surface: #14171c;
+  --surface-hover: #191d23;
+  --surface-elevated: #1b1f26;
+  --border: #22262d;
+  --border-subtle: #1a1d23;
+
+  --foreground: #e8eaed;
+  --muted-foreground: #8b92a0;
+  --faint-foreground: #565c68;
+
+  /* Acento primário: verde-menta (prêmio, lucro, positivo) */
+  --accent: #3ecf8e;
+  --accent-foreground: #0b0d10;
+  --accent-muted: #1a3329;
+
+  /* Risco / negativo / exercício */
+  --danger: #f0654a;
+  --danger-muted: #2e1a16;
+
+  /* Atenção / regular */
+  --warning: #e8b84b;
+  --warning-muted: #2e2716;
+
+  /* Informativo */
+  --info: #5b9cf0;
+
+  --radius: 0.625rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-faint-foreground: var(--faint-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-muted: var(--accent-muted);
+  --color-danger: var(--danger);
+  --color-danger-muted: var(--danger-muted);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-info: var(--info);
+  --radius-lg: var(--radius);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+}
+
+/* Números financeiros sempre em mono — reforça leitura tipo terminal */
+.font-tabular {
+  font-family: var(--font-geist-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--faint-foreground);
+}
+
+
