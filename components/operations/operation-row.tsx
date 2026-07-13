@@ -22,6 +22,7 @@ export function OperationRow({ operation, daysRemaining, onClose }: OperationRow
   const isOpen = operation.status === 'aberta';
   const resultColor =
     operation.net_profit === null ? 'text-muted-foreground' : operation.net_profit >= 0 ? 'text-accent' : 'text-danger';
+  const showHolder = operation.holder && !operation.holder.is_self;
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -39,6 +40,11 @@ export function OperationRow({ operation, daysRemaining, onClose }: OperationRow
             {operation.option_type}
           </span>
           <Badge variant={STATUS_VARIANT[operation.status]}>{operation.status}</Badge>
+          {showHolder && (
+            <span className="rounded border border-border bg-surface-elevated px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {operation.holder!.name}
+            </span>
+          )}
           {isOpen && (
             <span className="text-xs text-faint-foreground">
               {daysRemaining <= 0 ? 'vence hoje' : `${daysRemaining}d restantes`}
@@ -67,6 +73,16 @@ export function OperationRow({ operation, daysRemaining, onClose }: OperationRow
               IR <span className="text-danger">{formatBRL(operation.ir_amount)}</span>
             </span>
           )}
+          {operation.efficiency_pct !== null && operation.efficiency_pct !== undefined && (
+            <span>
+              Eficiência <span className="text-foreground">{formatNumber(operation.efficiency_pct, 1)}%</span>
+            </span>
+          )}
+          {showHolder && operation.commission_amount > 0 && (
+            <span>
+              Comissão <span className="text-warning">{formatBRL(operation.commission_amount)}</span>
+            </span>
+          )}
           <span>Vence {formatDate(operation.expiration)}</span>
         </div>
       </div>
@@ -74,8 +90,12 @@ export function OperationRow({ operation, daysRemaining, onClose }: OperationRow
       <div className="flex items-center gap-4">
         {operation.net_profit !== null && (
           <div className="text-right">
-            <p className="text-[10px] text-faint-foreground">Resultado líquido</p>
-            <p className={cn('font-tabular text-sm font-semibold', resultColor)}>{formatBRL(operation.net_profit)}</p>
+            <p className="text-[10px] text-faint-foreground">
+              {showHolder ? 'Líquido p/ titular' : 'Resultado líquido'}
+            </p>
+            <p className={cn('font-tabular text-sm font-semibold', resultColor)}>
+              {formatBRL(showHolder ? operation.net_profit - operation.commission_amount : operation.net_profit)}
+            </p>
           </div>
         )}
         {isOpen && (

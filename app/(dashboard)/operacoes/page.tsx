@@ -22,6 +22,7 @@ export default function OperacoesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<OperationStatus | 'todas'>('aberta');
+  const [holderFilter, setHolderFilter] = useState<string | 'todos'>('todos');
   const [closingOp, setClosingOp] = useState<Operation | null>(null);
   const [closingOpAveragePrice, setClosingOpAveragePrice] = useState<number | null>(null);
   const [sortDesc, setSortDesc] = useState(true);
@@ -58,14 +59,23 @@ export default function OperacoesPage() {
     };
   }, []);
 
+  const holders = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const o of operations) {
+      if (o.holder) map.set(o.holder.id, o.holder.name);
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [operations]);
+
   const filtered = useMemo(() => {
-    const list = tab === 'todas' ? operations : operations.filter((o) => o.status === tab);
+    let list = tab === 'todas' ? operations : operations.filter((o) => o.status === tab);
+    if (holderFilter !== 'todos') list = list.filter((o) => o.holder_id === holderFilter);
     return [...list].sort((a, b) =>
       sortDesc
         ? new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime()
         : new Date(a.opened_at).getTime() - new Date(b.opened_at).getTime()
     );
-  }, [operations, tab, sortDesc]);
+  }, [operations, tab, holderFilter, sortDesc]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { todas: operations.length };
@@ -107,7 +117,7 @@ export default function OperacoesPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={tab} onValueChange={(v) => setTab(v as OperationStatus | 'todas')}>
           <TabsList>
             {STATUS_TABS.map((t) => (
@@ -123,13 +133,39 @@ export default function OperacoesPage() {
           </TabsList>
         </Tabs>
 
-        <button
-          onClick={() => setSortDesc((s) => !s)}
-          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-surface-hover"
-        >
-          {sortDesc ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
-          Data de abertura
-        </button>
+        <div className="flex items-center gap-3">
+          {holders.length > 1 && (
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-0.5">
+              <button
+                onClick={() => setHolderFilter('todos')}
+                className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                  holderFilter === 'todos' ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
+                }`}
+              >
+                Todos
+              </button>
+              {holders.map((h) => (
+                <button
+                  key={h.id}
+                  onClick={() => setHolderFilter(h.id)}
+                  className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                    holderFilter === h.id ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
+                  }`}
+                >
+                  {h.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={() => setSortDesc((s) => !s)}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-surface-hover"
+          >
+            {sortDesc ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+            Data de abertura
+          </button>
+        </div>
       </div>
 
       {!loading && filtered.length === 0 && !error && (

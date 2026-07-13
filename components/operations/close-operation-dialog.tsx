@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { calculateNetProfit, calculateStockSaleResult } from '@/lib/calculations/finance';
+import { calculateNetProfit, calculateStockSaleResult, calculateCommission } from '@/lib/calculations/finance';
 import { formatBRL } from '@/lib/utils';
 import { GlossaryTerm } from '@/components/shared/glossary-term';
 import type { Operation } from '@/lib/types/database';
@@ -37,6 +37,7 @@ export function CloseOperationDialog({
   const totalPremium = operation.premium_received;
   const cost = outcome === 'expirou' ? 0 : Number(buybackCost.replace(',', '.')) || 0;
   const exercised = outcome === 'exercida';
+  const hasCommission = !!operation.holder && !operation.holder.is_self && operation.holder.commission_pct > 0;
 
   const stockSaleResult =
     exercised && operation.option_type === 'CALL' && averagePrice
@@ -55,6 +56,14 @@ export function CloseOperationDialog({
     [operation.option_type, totalPremium, cost, exercised, stockSaleResult]
   );
 
+  const commission = useMemo(
+    () =>
+      hasCommission
+        ? calculateCommission({ netProfit: result.netProfit, commissionPct: operation.holder!.commission_pct })
+        : { commissionAmount: 0, holderNetAfterCommission: result.netProfit },
+    [hasCommission, result.netProfit, operation.holder]
+  );
+
   async function handleConfirm() {
     setSaving(true);
     try {
@@ -65,6 +74,10 @@ export function CloseOperationDialog({
         netProfit: result.netProfit,
         irAmount: result.ir,
         exercised,
+        grossResult: result.grossResult,
+        irBase: result.irBase,
+        efficiencyPct: result.efficiencyPct,
+        commissionAmount: commission.commissionAmount,
       });
     } finally {
       setSaving(false);
@@ -85,6 +98,7 @@ export function CloseOperationDialog({
           <DialogTitle>Encerrar operação — {operation.asset?.ticker}</DialogTitle>
           <DialogDescription>
             {operation.option_type} strike {operation.strike} · vence {new Date(operation.expiration).toLocaleDateString('pt-BR')}
+            {hasCommission ? ` · titular: ${operation.holder!.name}` : ''}
           </DialogDescription>
         </DialogHeader>
 
@@ -154,6 +168,20 @@ export function CloseOperationDialog({
               <span className="text-foreground">Lucro líquido</span>
               <span className={result.netProfit >= 0 ? 'text-accent' : 'text-danger'}>{formatBRL(result.netProfit)}</span>
             </div>
+            {hasCommission && (
+              <>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Sua comissão ({operation.holder!.commission_pct}%)</span>
+                  <span className="text-warning">{formatBRL(commission.commissionAmount)}</span>
+                </div>
+                <div className="flex justify-between border-t border-border pt-1.5 font-semibold">
+                  <span className="text-foreground">Líquido para {operation.holder!.name}</span>
+                  <span className={commission.holderNetAfterCommission >= 0 ? 'text-accent' : 'text-danger'}>
+                    {formatBRL(commission.holderNetAfterCommission)}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex justify-end gap-2">
