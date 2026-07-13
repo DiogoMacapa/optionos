@@ -5,7 +5,7 @@ import { Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { OperationRow } from '@/components/operations/operation-row';
 import { CloseOperationDialog } from '@/components/operations/close-operation-dialog';
-import { listOperations, closeOperation, type CloseOperationInput } from '@/lib/supabase/queries';
+import { listOperations, closeOperation, getStockPosition, type CloseOperationInput } from '@/lib/supabase/queries';
 import { daysBetween } from '@/lib/calculations/finance';
 import type { Operation, OperationStatus } from '@/lib/types/database';
 
@@ -23,6 +23,7 @@ export default function OperacoesPage() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<OperationStatus | 'todas'>('aberta');
   const [closingOp, setClosingOp] = useState<Operation | null>(null);
+  const [closingOpAveragePrice, setClosingOpAveragePrice] = useState<number | null>(null);
   const [sortDesc, setSortDesc] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -75,7 +76,22 @@ export default function OperacoesPage() {
   async function handleClose(input: CloseOperationInput) {
     await closeOperation(input);
     setClosingOp(null);
+    setClosingOpAveragePrice(null);
     await refresh();
+  }
+
+  async function handleOpenClose(op: Operation) {
+    setClosingOp(op);
+    if (op.option_type === 'CALL') {
+      try {
+        const position = await getStockPosition(op.asset_id, op.holder_id);
+        setClosingOpAveragePrice(position?.average_price ?? null);
+      } catch {
+        setClosingOpAveragePrice(null);
+      }
+    } else {
+      setClosingOpAveragePrice(null);
+    }
   }
 
   return (
@@ -134,7 +150,7 @@ export default function OperacoesPage() {
             key={op.id}
             operation={op}
             daysRemaining={daysBetween(new Date(), op.expiration)}
-            onClose={() => setClosingOp(op)}
+            onClose={() => handleOpenClose(op)}
           />
         ))}
       </div>
@@ -143,8 +159,14 @@ export default function OperacoesPage() {
         <CloseOperationDialog
           operation={closingOp}
           open={!!closingOp}
-          onOpenChange={(open) => !open && setClosingOp(null)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setClosingOp(null);
+              setClosingOpAveragePrice(null);
+            }
+          }}
           onConfirm={handleClose}
+          averagePrice={closingOpAveragePrice}
         />
       )}
     </div>

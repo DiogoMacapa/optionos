@@ -8,6 +8,10 @@ import type {
   ScoreWeights,
   StrategySettings,
   ScoreBreakdown,
+  Holder,
+  StockPosition,
+  Withdrawal,
+  NamedStrategy,
 } from '@/lib/types/database';
 
 // ---------------------------------------------------------------
@@ -212,6 +216,7 @@ export async function discardOpportunity(id: string): Promise<void> {
 // ---------------------------------------------------------------
 export interface NewOperationInput {
   assetId: string;
+  holderId: string;
   opportunityId: string | null;
   optionType: 'PUT' | 'CALL';
   strike: number;
@@ -220,6 +225,7 @@ export interface NewOperationInput {
   premiumReceived: number;
   deltaAtOpen: number | null;
   committedCapital: number | null;
+  stockPositionId?: string | null;
   notes?: string | null;
 }
 
@@ -228,6 +234,7 @@ export async function createOperation(input: NewOperationInput): Promise<Operati
     .from('operations')
     .insert({
       asset_id: input.assetId,
+      holder_id: input.holderId,
       opportunity_id: input.opportunityId,
       option_type: input.optionType,
       strike: input.strike,
@@ -236,6 +243,7 @@ export async function createOperation(input: NewOperationInput): Promise<Operati
       premium_received: input.premiumReceived,
       delta_at_open: input.deltaAtOpen,
       committed_capital: input.committedCapital,
+      stock_position_id: input.stockPositionId ?? null,
       status: 'aberta',
     })
     .select('*')
@@ -247,7 +255,7 @@ export async function createOperation(input: NewOperationInput): Promise<Operati
 export async function listOperations(): Promise<Operation[]> {
   const { data, error } = await supabase
     .from('operations')
-    .select('*, asset:assets(*)')
+    .select('*, asset:assets(*), holder:holders(*)')
     .order('opened_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as unknown as Operation[];
@@ -260,6 +268,10 @@ export interface CloseOperationInput {
   netProfit: number;
   irAmount: number;
   exercised: boolean;
+  grossResult?: number;
+  irBase?: number;
+  efficiencyPct?: number;
+  commissionAmount?: number;
 }
 
 export async function closeOperation(input: CloseOperationInput): Promise<Operation> {
@@ -272,6 +284,10 @@ export async function closeOperation(input: CloseOperationInput): Promise<Operat
       net_profit: input.netProfit,
       ir_amount: input.irAmount,
       exercised: input.exercised,
+      gross_result: input.grossResult ?? null,
+      ir_base: input.irBase ?? null,
+      efficiency_pct: input.efficiencyPct ?? null,
+      commission_amount: input.commissionAmount ?? 0,
     })
     .eq('id', input.id)
     .select('*')
@@ -347,4 +363,139 @@ export async function upsertTodayEquitySnapshot(values: {
     { onConflict: 'recorded_at' }
   );
   if (error) throw error;
+}
+
+// ---------------------------------------------------------------
+// Holders (titulares — Diogo, Mãe, ...)
+// ---------------------------------------------------------------
+export async function listHolders(): Promise<Holder[]> {
+  const { data, error } = await supabase.from('holders').select('*').eq('active', true).order('is_self', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getSelfHolder(): Promise<Holder> {
+  const { data, error } = await supabase.from('holders').select('*').eq('is_self', true).limit(1).single();
+  if (error) throw error;
+  return data;
+}
+
+export async function createHolder(input: { name: string; commissionPct: number }): Promise<Holder> {
+  const { data, error } = await supabase
+    .from('holders')
+    .insert({ name: input.name, is_self: false, commission_pct: input.commissionPct })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateHolder(id: string, patch: Partial<Pick<Holder, 'name' | 'commission_pct' | 'active'>>): Promise<Holder> {
+  const { data, error } = await supabase.from('holders').update(patch).eq('id', id).select('*').single();
+  if (error) throw error;
+  return data;
+}
+
+// ---------------------------------------------------------------
+// Stock positions (PM para Covered Call)
+// ---------------------------------------------------------------
+export async function listStockPositions(holderId?: string): Promise<StockPosition[]> {
+  let query = supabase.from('stock_positions').select('*, asset:assets(*), holder:holders(*)').eq('active', true);
+  if (holderId) query = query.eq('holder_id', holderId);
+  const { data, error } = await query.order('opened_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as StockPosition[];
+}
+
+export async function getStockPosition(assetId: string, holderId: string): Promise<StockPosition | null> {
+  const { data, error } = await supabase
+    .from('stock_positions')
+    .select('*')
+    .eq('asset_id', assetId)
+    .eq('holder_id', holderId)
+    .eq('active', true)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function upsertStockPosition(input: {
+  assetId: string;
+  holderId: string;
+  quantity: number;
+  averagePrice: number;
+}): Promise<StockPosition> {
+  const existing = await getStockPosition(input.assetId, input.holderId);
+  if (existing) {
+    const { data, error } = await supabase
+      .from('stock_positions')
+      .update({ quantity: input.quantity, average_price: input.averagePrice })
+      .eq('id', existing.id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data;
+  }
+  const { data, error } = await supabase
+    .from('stock_positions')
+    .insert({
+      asset_id: input.assetId,
+      holder_id: input.holderId,
+      quantity: input.quantity,
+      average_price: input.averagePrice,
+    })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function closeStockPosition(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('stock_positions')
+    .update({ active: false, closed_at: new Date().toISOString().slice(0, 10) })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------
+// Withdrawals (saques — lançamento manual, nunca fórmula fixa)
+// ---------------------------------------------------------------
+export async function listWithdrawals(holderId?: string): Promise<Withdrawal[]> {
+  let query = supabase.from('withdrawals').select('*, holder:holders(*)');
+  if (holderId) query = query.eq('holder_id', holderId);
+  const { data, error } = await query.order('withdrawn_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as Withdrawal[];
+}
+
+export async function createWithdrawal(input: {
+  holderId: string;
+  operationId?: string | null;
+  amount: number;
+  withdrawnAt?: string;
+  notes?: string | null;
+}): Promise<Withdrawal> {
+  const { data, error } = await supabase
+    .from('withdrawals')
+    .insert({
+      holder_id: input.holderId,
+      operation_id: input.operationId ?? null,
+      amount: input.amount,
+      withdrawn_at: input.withdrawnAt ?? new Date().toISOString().slice(0, 10),
+      notes: input.notes ?? null,
+    })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// ---------------------------------------------------------------
+// Named strategies (glossário de táticas, para contexto de IA)
+// ---------------------------------------------------------------
+export async function listNamedStrategies(): Promise<NamedStrategy[]> {
+  const { data, error } = await supabase.from('named_strategies').select('*').order('name');
+  if (error) throw error;
+  return data ?? [];
 }

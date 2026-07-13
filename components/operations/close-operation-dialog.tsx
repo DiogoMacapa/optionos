@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { calculateNetProfit } from '@/lib/calculations/finance';
+import { calculateNetProfit, calculateStockSaleResult } from '@/lib/calculations/finance';
 import { formatBRL } from '@/lib/utils';
 import { GlossaryTerm } from '@/components/shared/glossary-term';
 import type { Operation } from '@/lib/types/database';
@@ -17,21 +17,42 @@ interface CloseOperationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (input: CloseOperationInput) => Promise<void>;
+  /** Preço médio das ações (só relevante se for CALL e puder ser exercida). */
+  averagePrice?: number | null;
 }
 
 type OutcomeType = 'expirou' | 'recomprou' | 'exercida';
 
-export function CloseOperationDialog({ operation, open, onOpenChange, onConfirm }: CloseOperationDialogProps) {
+export function CloseOperationDialog({
+  operation,
+  open,
+  onOpenChange,
+  onConfirm,
+  averagePrice,
+}: CloseOperationDialogProps) {
   const [outcome, setOutcome] = useState<OutcomeType>('expirou');
   const [buybackCost, setBuybackCost] = useState('0');
   const [saving, setSaving] = useState(false);
 
   const totalPremium = operation.premium_received;
   const cost = outcome === 'expirou' ? 0 : Number(buybackCost.replace(',', '.')) || 0;
+  const exercised = outcome === 'exercida';
+
+  const stockSaleResult =
+    exercised && operation.option_type === 'CALL' && averagePrice
+      ? calculateStockSaleResult(operation.strike, averagePrice, operation.quantity)
+      : 0;
 
   const result = useMemo(
-    () => calculateNetProfit({ premiumReceived: totalPremium, buybackCost: cost }),
-    [totalPremium, cost]
+    () =>
+      calculateNetProfit({
+        optionType: operation.option_type,
+        premiumReceived: totalPremium,
+        buybackCost: cost,
+        exercised,
+        strikeVsAveragePriceResult: stockSaleResult,
+      }),
+    [operation.option_type, totalPremium, cost, exercised, stockSaleResult]
   );
 
   async function handleConfirm() {
@@ -39,16 +60,23 @@ export function CloseOperationDialog({ operation, open, onOpenChange, onConfirm 
     try {
       await onConfirm({
         id: operation.id,
-        status: outcome === 'exercida' ? 'exercida' : 'encerrada',
+        status: exercised ? 'exercida' : 'encerrada',
         closePrice: cost,
         netProfit: result.netProfit,
         irAmount: result.ir,
-        exercised: outcome === 'exercida',
+        exercised,
       });
     } finally {
       setSaving(false);
     }
   }
+
+  const irLabel =
+    operation.option_type === 'PUT'
+      ? 'IR (15% sobre prêmio − recompra)'
+      : exercised
+        ? 'IR (15% sobre prêmio + resultado da venda)'
+        : 'IR (15% sobre o prêmio bruto)';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -91,6 +119,13 @@ export function CloseOperationDialog({ operation, open, onOpenChange, onConfirm 
             </div>
           )}
 
+          {exercised && operation.option_type === 'CALL' && !averagePrice && (
+            <p className="rounded-lg border border-warning/30 bg-warning-muted px-3 py-2 text-xs text-warning">
+              Nenhum preço médio (PM) cadastrado para este ativo — o resultado da venda das ações não será
+              incluído no cálculo do IR. Cadastre o PM em Configurações para um cálculo completo.
+            </p>
+          )}
+
           <div className="space-y-1.5 rounded-lg border border-border bg-surface-elevated p-3 font-tabular text-sm">
             <div className="flex justify-between text-muted-foreground">
               <span>Prêmio recebido</span>
@@ -102,8 +137,17 @@ export function CloseOperationDialog({ operation, open, onOpenChange, onConfirm 
                 <span className="text-danger">-{formatBRL(cost)}</span>
               </div>
             )}
+            {exercised && operation.option_type === 'CALL' && !!averagePrice && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>Resultado da venda (Strike − PM)</span>
+                <span className={stockSaleResult >= 0 ? 'text-accent' : 'text-danger'}>
+                  {stockSaleResult >= 0 ? '+' : ''}
+                  {formatBRL(stockSaleResult)}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between text-muted-foreground">
-              <span>IR (15% sobre o lucro)</span>
+              <span>{irLabel}</span>
               <span className="text-danger">-{formatBRL(result.ir)}</span>
             </div>
             <div className="flex justify-between border-t border-border pt-1.5 font-semibold">

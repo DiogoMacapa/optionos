@@ -141,6 +141,8 @@ export interface Operation {
   id: string;
   asset_id: string;
   opportunity_id: string | null;
+  holder_id: string;
+  stock_position_id: string | null;
 
   option_type: OptionType;
   strike: number;
@@ -156,8 +158,13 @@ export interface Operation {
 
   closed_at: string | null;
   close_price: number | null;
+  buyback_premium: number | null;
   net_profit: number | null;
   ir_amount: number | null;
+  gross_result: number | null;
+  ir_base: number | null;
+  efficiency_pct: number | null;
+  commission_amount: number;
 
   rolled_to_operation_id: string | null;
   rolled_from_operation_id: string | null;
@@ -170,8 +177,9 @@ export interface Operation {
   created_at: string;
   updated_at: string;
 
-  // Join opcional
+  // Joins opcionais
   asset?: Asset;
+  holder?: Holder;
 }
 
 export interface EquitySnapshot {
@@ -182,5 +190,50 @@ export interface EquitySnapshot {
   committed_capital: number;
   cumulative_premiums: number;
   cumulative_profit: number;
+  created_at: string;
+}
+
+export interface Holder {
+  id: string;
+  name: string;
+  is_self: boolean;
+  commission_pct: number;
+  active: boolean;
+  created_at: string;
+}
+
+export interface StockPosition {
+  id: string;
+  asset_id: string;
+  holder_id: string;
+  quantity: number;
+  average_price: number;
+  active: boolean;
+  opened_at: string;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+
+  asset?: Asset;
+  holder?: Holder;
+}
+
+export interface Withdrawal {
+  id: string;
+  holder_id: string;
+  operation_id: string | null;
+  amount: number;
+  withdrawn_at: string;
+  notes: string | null;
+  created_at: string;
+
+  holder?: Holder;
+}
+
+export interface NamedStrategy {
+  id: string;
+  name: string;
+  description: string;
+  applies_to: 'PUT' | 'CALL' | 'AMBOS';
   created_at: string;
 }

@@ -11,6 +11,9 @@ import {
   calculateExpectedPremium,
   calculateNetProfit,
   calculateProfitability,
+  calculatePremiumRate,
+  calculateStrikeDistance,
+  type OptionType,
 } from '@/lib/calculations/finance';
 import { formatBRL, formatPct } from '@/lib/utils';
 
@@ -24,8 +27,10 @@ function useNumberField(initial = '') {
 }
 
 export default function CalculadorasPage() {
+  const [optionType, setOptionType] = useState<OptionType>('PUT');
   const cash = useNumberField('10000');
-  const strike = useNumberField('60');
+  const quote = useNumberField('60');
+  const strike = useNumberField('58');
   const premium = useNumberField('0.80');
   const quantity = useNumberField('1');
   const buyback = useNumberField('0');
@@ -34,12 +39,16 @@ export default function CalculadorasPage() {
   const maxContracts = calculateMaxContracts({ availableCash: cash.value, strike: strike.value });
   const requiredCapital = calculateRequiredCapital({ strike: strike.value, quantity: quantity.value });
   const expectedPremium = calculateExpectedPremium({ premium: premium.value, quantity: quantity.value });
-  const net = calculateNetProfit({ premiumReceived: expectedPremium, buybackCost: buyback.value });
+  const net = calculateNetProfit({ optionType, premiumReceived: expectedPremium, buybackCost: buyback.value });
   const profitability = calculateProfitability({
     netProfit: net.netProfit,
     committedCapital: requiredCapital,
     daysHeld: daysHeld.value,
   });
+  const rate = calculatePremiumRate(optionType, premium.value, quote.value, strike.value);
+  const distance = calculateStrikeDistance(quote.value, strike.value);
+
+  const exceedsCash = requiredCapital > cash.value && cash.value > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -57,29 +66,86 @@ export default function CalculadorasPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-1">
+              <Label>Tipo</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['PUT', 'CALL'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setOptionType(t)}
+                    className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                      optionType === t
+                        ? 'border-accent/50 bg-accent-muted text-accent'
+                        : 'border-border bg-surface text-muted-foreground hover:bg-surface-hover'
+                    }`}
+                  >
+                    {t === 'PUT' ? 'PUT (Cash Secured)' : 'CALL (Covered)'}
+                  </button>
+                ))}
+              </div>
+            </div>
             <Field label="Caixa disponível (R$)" field={cash} />
+            <Field label="Cotação atual (R$)" field={quote} />
             <Field label="Strike (R$)" field={strike} />
             <Field label="Prêmio por ação (R$)" field={premium} />
-            <Field label="Quantidade de contratos" field={quantity} />
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label>Quantidade de contratos</Label>
+                {cash.value > 0 && strike.value > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => quantity.setRaw(String(maxContracts))}
+                    className="text-[11px] font-medium text-accent hover:underline"
+                  >
+                    usar máximo ({maxContracts})
+                  </button>
+                )}
+              </div>
+              <Input
+                value={quantity.raw}
+                onChange={(e) => quantity.setRaw(e.target.value)}
+                className={`font-tabular ${exceedsCash ? 'border-danger/50 focus-visible:ring-danger/50' : ''}`}
+              />
+            </div>
             <Field label="Custo de recompra, se houver (R$)" field={buyback} />
             <Field label="Dias em carteira (para anualizar)" field={daysHeld} />
           </CardContent>
         </Card>
 
         <div className="space-y-4">
-          <Card>
+          <Card className={exceedsCash ? 'border-danger/40' : undefined}>
             <CardHeader>
               <CardTitle>Dimensionamento</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-4">
               <Metric label="Contratos máximos" value={String(maxContracts)} />
-              <Metric label="Capital necessário" value={formatBRL(requiredCapital)} />
+              <Metric label="Capital necessário" value={formatBRL(requiredCapital)} accent={exceedsCash ? 'danger' : undefined} />
               <Metric
                 label="Excede caixa?"
-                value={requiredCapital > cash.value ? 'Sim' : 'Não'}
-                accent={requiredCapital > cash.value ? 'danger' : 'accent'}
+                value={exceedsCash ? 'Sim' : 'Não'}
+                accent={exceedsCash ? 'danger' : 'accent'}
               />
               <Metric label="% do caixa comprometido" value={formatPct(cash.value > 0 ? (requiredCapital / cash.value) * 100 : 0, 1)} />
+            </CardContent>
+            {exceedsCash && (
+              <div className="mx-5 mb-4 rounded-lg border border-danger/25 bg-danger-muted px-3 py-2 text-xs text-danger">
+                Essa quantidade excede seu caixa disponível em {formatBRL(requiredCapital - cash.value)}. Máximo
+                seguro: {maxContracts} contrato{maxContracts === 1 ? '' : 's'}.
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Strike</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-4">
+              <Metric label="Distância" value={formatPct(distance * 100, 2)} accent={distance >= 0 ? 'accent' : 'danger'} />
+              <Metric
+                label={`Taxa (prêmio/${optionType === 'PUT' ? 'strike' : 'cotação'})`}
+                value={formatPct(rate * 100, 2)}
+              />
             </CardContent>
           </Card>
 
@@ -89,7 +155,11 @@ export default function CalculadorasPage() {
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-4">
               <Metric label="Prêmio esperado" value={formatBRL(expectedPremium)} accent="accent" />
-              <Metric label="IR (15%)" value={formatBRL(net.ir)} accent="danger" />
+              <Metric
+                label={optionType === 'PUT' ? 'IR (15% s/ prêmio-recompra)' : 'IR (15% s/ prêmio bruto)'}
+                value={formatBRL(net.ir)}
+                accent="danger"
+              />
               <Metric label="Lucro líquido" value={formatBRL(net.netProfit)} accent={net.netProfit >= 0 ? 'accent' : 'danger'} />
               <Metric label="Rentabilidade total" value={formatPct(profitability.totalPct, 2)} />
               <Metric label="Rentabilidade anualizada" value={formatPct(profitability.annualizedPct, 1)} accent="accent" />

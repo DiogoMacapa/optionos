@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { calculateMaxContracts, calculateRequiredCapital, calculateExpectedPremium } from '@/lib/calculations/finance';
 import { formatBRL } from '@/lib/utils';
-import type { Opportunity } from '@/lib/types/database';
+import { listHolders } from '@/lib/supabase/queries';
+import type { Opportunity, Holder } from '@/lib/types/database';
 import type { NewOperationInput } from '@/lib/supabase/queries';
 
 interface OpenOperationDialogProps {
@@ -22,6 +24,19 @@ export function OpenOperationDialog({ opportunity, open, onOpenChange, available
   const entry = opportunity.option_chain_entry;
   const [quantity, setQuantity] = useState('1');
   const [saving, setSaving] = useState(false);
+  const [holders, setHolders] = useState<Holder[]>([]);
+  const [holderId, setHolderId] = useState<string>('');
+
+  useEffect(() => {
+    if (!open) return;
+    listHolders()
+      .then((list) => {
+        setHolders(list);
+        const self = list.find((h) => h.is_self);
+        setHolderId((self ?? list[0])?.id ?? '');
+      })
+      .catch(() => setHolders([]));
+  }, [open]);
 
   const qty = Number(quantity) || 0;
   const strike = entry?.strike ?? 0;
@@ -32,11 +47,12 @@ export function OpenOperationDialog({ opportunity, open, onOpenChange, available
   const expectedPremium = calculateExpectedPremium({ premium, quantity: qty });
 
   async function handleConfirm() {
-    if (!entry) return;
+    if (!entry || !holderId) return;
     setSaving(true);
     try {
       await onConfirm({
         assetId: opportunity.asset_id,
+        holderId,
         opportunityId: opportunity.id,
         optionType: entry.option_type,
         strike: entry.strike,
@@ -63,6 +79,25 @@ export function OpenOperationDialog({ opportunity, open, onOpenChange, available
         </DialogHeader>
 
         <div className="space-y-4">
+          {holders.length > 1 && (
+            <div className="space-y-1">
+              <Label>Titular</Label>
+              <Select value={holderId} onValueChange={setHolderId}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {holders.map((h) => (
+                    <SelectItem key={h.id} value={h.id}>
+                      {h.name}
+                      {!h.is_self ? ` (comissão ${h.commission_pct}%)` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-1">
             <Label htmlFor="qty">Quantidade de contratos</Label>
             <Input id="qty" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="font-tabular" />
@@ -94,7 +129,7 @@ export function OpenOperationDialog({ opportunity, open, onOpenChange, available
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button disabled={saving || qty <= 0} onClick={handleConfirm}>
+            <Button disabled={saving || qty <= 0 || !holderId} onClick={handleConfirm}>
               {saving ? 'Salvando…' : 'Confirmar abertura'}
             </Button>
           </div>

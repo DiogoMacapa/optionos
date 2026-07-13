@@ -34,44 +34,84 @@ export function calculateExpectedPremium({ premium, quantity }: ExpectedPremiumI
 }
 
 /**
- * IR sobre operações de opções no Brasil: 15% sobre o ganho líquido
- * (day trade é 20%, mas venda coberta de opção com vencimento normalmente
- * se enquadra como operação comum de renda variável = 15%).
+ * IR sobre operações de opções no Brasil: 15% sobre renda variável comum.
  * Isenção de R$20.000/mês em vendas de ações NÃO se aplica a opções.
+ *
+ * Regra fiscal validada com dados reais da planilha do usuário
+ * (matematicamente confirmada linha a linha, não é suposição):
+ *
+ *   - PUT  (Cash Secured Put): IR incide sobre o resultado LÍQUIDO
+ *          da operação, ou seja, (Prêmio recebido − Custo de recompra).
+ *
+ *   - CALL (Covered Call): IR incide sobre o PRÊMIO BRUTO de venda,
+ *          independentemente do custo de recompra. Se a Call for
+ *          exercida, a base do IR passa a ser (Prêmio + resultado da
+ *          venda das ações ao strike, isto é (Strike − PM) × Qtd).
+ *
+ * Isso não é um detalhe arbitrário: são bases de cálculo diferentes
+ * por natureza da operação, e replicam exatamente o que o usuário já
+ * apura na prática.
  */
 const IR_RATE = 0.15;
 
+export type OptionType = 'PUT' | 'CALL';
+
 export interface NetProfitInput {
-  premiumReceived: number;
-  buybackCost?: number; // custo de recompra, se encerrada antes do vencimento (0 se expirou/exercida)
-  otherCosts?: number;  // corretagem, emolumentos, etc.
+  optionType: OptionType;
+  premiumReceived: number;      // prêmio total recebido na venda (bruto)
+  buybackCost?: number;         // custo total de recompra (0 se expirou/exercida sem recompra)
+  exercised?: boolean;          // true se a opção foi exercida
+  strikeVsAveragePriceResult?: number; // (Strike-PM)×Qtd, só relevante para CALL exercida
+  otherCosts?: number;          // corretagem, emolumentos, etc.
 }
 
-export function calculateGrossProfit({
-  premiumReceived,
-  buybackCost = 0,
-  otherCosts = 0,
-}: NetProfitInput): number {
-  return premiumReceived - buybackCost - otherCosts;
-}
-
-export function calculateIR(grossProfit: number): number {
-  if (grossProfit <= 0) return 0;
-  return grossProfit * IR_RATE;
-}
-
-export function calculateNetProfit(input: NetProfitInput): {
-  grossProfit: number;
+export interface NetProfitResult {
+  grossResult: number;   // resultado bruto da operação (antes do IR)
+  irBase: number;         // base efetivamente usada para calcular o IR
   ir: number;
   netProfit: number;
-} {
-  const grossProfit = calculateGrossProfit(input);
-  const ir = calculateIR(grossProfit);
-  return {
-    grossProfit,
-    ir,
-    netProfit: grossProfit - ir,
-  };
+  efficiencyPct: number;  // 1 - (recompra/prêmio), sempre relativo ao prêmio bruto
+}
+
+export function calculateNetProfit({
+  optionType,
+  premiumReceived,
+  buybackCost = 0,
+  exercised = false,
+  strikeVsAveragePriceResult = 0,
+  otherCosts = 0,
+}: NetProfitInput): NetProfitResult {
+  const efficiencyPct =
+    premiumReceived > 0 ? Math.round((1 - buybackCost / premiumReceived) * 10000) / 100 : 0;
+
+  if (optionType === 'CALL' && exercised) {
+    // Quando exercida, o resultado junta o prêmio da série com o
+    // resultado da venda das ações ao strike (pode ser negativo se
+    // Strike < PM). O IR incide sobre essa soma.
+    const irBase = premiumReceived + strikeVsAveragePriceResult;
+    const ir = irBase > 0 ? irBase * IR_RATE : 0;
+    return {
+      grossResult: irBase,
+      irBase,
+      ir,
+      netProfit: irBase - ir - otherCosts,
+      efficiencyPct,
+    };
+  }
+
+  const grossResult = premiumReceived - buybackCost - otherCosts;
+
+  if (optionType === 'CALL') {
+    // CALL não exercida: IR sempre sobre o prêmio bruto, não sobre o líquido.
+    const irBase = premiumReceived;
+    const ir = irBase > 0 ? irBase * IR_RATE : 0;
+    return { grossResult, irBase, ir, netProfit: grossResult - ir, efficiencyPct };
+  }
+
+  // PUT: IR sobre o resultado líquido (prêmio - recompra).
+  const irBase = grossResult;
+  const ir = irBase > 0 ? irBase * IR_RATE : 0;
+  return { grossResult, irBase, ir, netProfit: grossResult - ir, efficiencyPct };
 }
 
 export interface ProfitabilityInput {
@@ -102,4 +142,65 @@ export function daysBetween(start: string | Date, end: string | Date): number {
   s.setHours(0, 0, 0, 0);
   e.setHours(0, 0, 0, 0);
   return Math.max(0, Math.round((e.getTime() - s.getTime()) / 86400000));
+}
+
+// ============================================================
+// Fórmulas de Taxa, Distância e Spread — validadas com a
+// planilha real do usuário. A Taxa usa referências DIFERENTES
+// dependendo do tipo de opção:
+//   - PUT:  Taxa = Prêmio ÷ Strike     (o que importa é a garantia)
+//   - CALL: Taxa = Prêmio ÷ Cotação    (o que importa é o preço de mercado)
+// Distância e Spread são iguais nos dois casos.
+// ============================================================
+
+export function calculateStrikeDistance(quote: number, strike: number): number {
+  if (quote === 0) return 0;
+  return (quote - strike) / quote;
+}
+
+export function calculateSpread(quote: number, strike: number): number {
+  return quote - strike;
+}
+
+export function calculatePremiumRate(optionType: OptionType, premium: number, quote: number, strike: number): number {
+  const base = optionType === 'PUT' ? strike : quote;
+  if (base === 0) return 0;
+  return premium / base;
+}
+
+/** Garantia exigida para uma PUT Cash Secured: Strike × Qtd × 100. */
+export function calculateGuarantee(strike: number, quantity: number): number {
+  return strike * CONTRACT_SIZE * quantity;
+}
+
+/**
+ * Resultado da venda das ações quando uma CALL é exercida:
+ * (Strike - PM) × Qtd × 100. Pode ser negativo se Strike < PM.
+ */
+export function calculateStockSaleResult(strike: number, averagePrice: number, quantity: number): number {
+  return (strike - averagePrice) * CONTRACT_SIZE * quantity;
+}
+
+// ============================================================
+// Comissão de gestão (para operações feitas em nome de terceiros,
+// ex: Mãe). O valor sacado é sempre um lançamento manual à parte
+// (withdrawals) — nunca uma fórmula fixa, pois na prática varia
+// (100%, 50%, ou nada) a critério do usuário.
+// ============================================================
+
+export interface CommissionInput {
+  netProfit: number;
+  commissionPct: number; // 0-100
+}
+
+export function calculateCommission({ netProfit, commissionPct }: CommissionInput): {
+  commissionAmount: number;
+  holderNetAfterCommission: number;
+} {
+  if (netProfit <= 0) return { commissionAmount: 0, holderNetAfterCommission: netProfit };
+  const commissionAmount = Math.round(netProfit * (commissionPct / 100) * 100) / 100;
+  return {
+    commissionAmount,
+    holderNetAfterCommission: Math.round((netProfit - commissionAmount) * 100) / 100,
+  };
 }
