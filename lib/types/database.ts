@@ -185,12 +185,23 @@ export interface Operation {
 export interface EquitySnapshot {
   id: string;
   recorded_at: string;
+  holder_id: string;
   total_equity: number;
   free_cash: number;
   committed_capital: number;
   cumulative_premiums: number;
   cumulative_profit: number;
   created_at: string;
+
+  holder?: Holder;
+}
+
+export interface CommissionSummary {
+  holder_id: string;
+  holder_name: string;
+  commission_pct: number;
+  commission_earned: number;
+  commission_withdrawn: number;
 }
 
 export interface Holder {

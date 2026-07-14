@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -10,33 +11,48 @@ import { calculateNetProfit, calculateStockSaleResult, calculateCommission } fro
 import { formatBRL } from '@/lib/utils';
 import { GlossaryTerm } from '@/components/shared/glossary-term';
 import type { Operation } from '@/lib/types/database';
-import type { CloseOperationInput } from '@/lib/supabase/queries';
+import type { CloseOperationInput, NewOperationInput } from '@/lib/supabase/queries';
 
 interface CloseOperationDialogProps {
   operation: Operation;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (input: CloseOperationInput) => Promise<void>;
+  /** Chamado quando o usuário escolhe "Rolei" — pai cuida de encerrar+abrir via rollOperation. */
+  onRoll: (buybackCost: number, newOperation: NewOperationInput) => Promise<void>;
   /** Preço médio das ações (só relevante se for CALL e puder ser exercida). */
   averagePrice?: number | null;
 }
 
-type OutcomeType = 'expirou' | 'recomprou' | 'exercida';
+type OutcomeType = 'expirou' | 'recomprou' | 'exercida' | 'rolou';
+
+function parseLocaleNumber(s: string): number {
+  const n = Number(s.replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}
 
 export function CloseOperationDialog({
   operation,
   open,
   onOpenChange,
   onConfirm,
+  onRoll,
   averagePrice,
 }: CloseOperationDialogProps) {
   const [outcome, setOutcome] = useState<OutcomeType>('expirou');
   const [buybackCost, setBuybackCost] = useState('0');
   const [saving, setSaving] = useState(false);
 
+  // Campos da nova operação (rolagem)
+  const [rollStrike, setRollStrike] = useState('');
+  const [rollPremium, setRollPremium] = useState('');
+  const [rollQuantity, setRollQuantity] = useState(String(operation.quantity));
+  const [rollExpiration, setRollExpiration] = useState('');
+
   const totalPremium = operation.premium_received;
   const cost = outcome === 'expirou' ? 0 : Number(buybackCost.replace(',', '.')) || 0;
   const exercised = outcome === 'exercida';
+  const isRolling = outcome === 'rolou';
   const hasCommission = !!operation.holder && !operation.holder.is_self && operation.holder.commission_pct > 0;
 
   const stockSaleResult =
@@ -64,9 +80,29 @@ export function CloseOperationDialog({
     [hasCommission, result.netProfit, operation.holder]
   );
 
+  const rollFormValid =
+    rollStrike.trim() !== '' && rollPremium.trim() !== '' && rollQuantity.trim() !== '' && rollExpiration.trim() !== '';
+
   async function handleConfirm() {
     setSaving(true);
     try {
+      if (isRolling) {
+        if (!rollFormValid) return;
+        await onRoll(cost, {
+          assetId: operation.asset_id,
+          holderId: operation.holder_id,
+          opportunityId: null,
+          optionType: operation.option_type,
+          strike: parseLocaleNumber(rollStrike),
+          expiration: rollExpiration,
+          quantity: Math.round(parseLocaleNumber(rollQuantity)),
+          premiumReceived: parseLocaleNumber(rollPremium) * Math.round(parseLocaleNumber(rollQuantity)),
+          deltaAtOpen: null,
+          committedCapital: operation.committed_capital,
+          stockPositionId: operation.stock_position_id,
+        });
+        return;
+      }
       await onConfirm({
         id: operation.id,
         status: exercised ? 'exercida' : 'encerrada',
@@ -113,6 +149,7 @@ export function CloseOperationDialog({
                 <SelectItem value="expirou">Expirou sem valor (prêmio total capturado)</SelectItem>
                 <SelectItem value="recomprou">Recomprei antes do vencimento</SelectItem>
                 <SelectItem value="exercida">Fui exercido</SelectItem>
+                <SelectItem value="rolou">Rolei para outra opção</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-faint-foreground">
@@ -120,9 +157,9 @@ export function CloseOperationDialog({
             </p>
           </div>
 
-          {outcome === 'recomprou' && (
+          {(outcome === 'recomprou' || isRolling) && (
             <div className="space-y-1">
-              <Label htmlFor="buyback">Custo de recompra (total)</Label>
+              <Label htmlFor="buyback">{isRolling ? 'Custo de recompra da posição atual' : 'Custo de recompra (total)'}</Label>
               <Input
                 id="buyback"
                 value={buybackCost}
@@ -133,6 +170,36 @@ export function CloseOperationDialog({
             </div>
           )}
 
+          {isRolling && (
+            <div className="space-y-3 rounded-lg border border-border bg-surface-elevated p-3.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                <RefreshCw className="h-3.5 w-3.5 text-accent" />
+                Nova operação (rolagem)
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Informe os dados da nova opção vendida. A operação atual será marcada como &quot;rolada&quot; e vinculada a esta.
+              </p>
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <Label>Novo strike</Label>
+                  <Input className="font-tabular" value={rollStrike} onChange={(e) => setRollStrike(e.target.value)} placeholder="0,00" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Novo prêmio (por ação)</Label>
+                  <Input className="font-tabular" value={rollPremium} onChange={(e) => setRollPremium(e.target.value)} placeholder="0,00" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Nova quantidade</Label>
+                  <Input className="font-tabular" value={rollQuantity} onChange={(e) => setRollQuantity(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Novo vencimento</Label>
+                  <Input type="date" className="font-tabular" value={rollExpiration} onChange={(e) => setRollExpiration(e.target.value)} />
+                </div>
+              </div>
+            </div>
+          )}
+
           {exercised && operation.option_type === 'CALL' && !averagePrice && (
             <p className="rounded-lg border border-warning/30 bg-warning-muted px-3 py-2 text-xs text-warning">
               Nenhum preço médio (PM) cadastrado para este ativo — o resultado da venda das ações não será
@@ -140,56 +207,67 @@ export function CloseOperationDialog({
             </p>
           )}
 
-          <div className="space-y-1.5 rounded-lg border border-border bg-surface-elevated p-3 font-tabular text-sm">
-            <div className="flex justify-between text-muted-foreground">
-              <span>Prêmio recebido</span>
-              <span className="text-foreground">{formatBRL(totalPremium)}</span>
-            </div>
-            {cost > 0 && (
+          {!isRolling && (
+            <div className="space-y-1.5 rounded-lg border border-border bg-surface-elevated p-3 font-tabular text-sm">
               <div className="flex justify-between text-muted-foreground">
-                <span>Custo de recompra</span>
-                <span className="text-danger">-{formatBRL(cost)}</span>
+                <span>Prêmio recebido</span>
+                <span className="text-foreground">{formatBRL(totalPremium)}</span>
               </div>
-            )}
-            {exercised && operation.option_type === 'CALL' && !!averagePrice && (
-              <div className="flex justify-between text-muted-foreground">
-                <span>Resultado da venda (Strike − PM)</span>
-                <span className={stockSaleResult >= 0 ? 'text-accent' : 'text-danger'}>
-                  {stockSaleResult >= 0 ? '+' : ''}
-                  {formatBRL(stockSaleResult)}
-                </span>
-              </div>
-            )}
-            <div className="flex justify-between text-muted-foreground">
-              <span>{irLabel}</span>
-              <span className="text-danger">-{formatBRL(result.ir)}</span>
-            </div>
-            <div className="flex justify-between border-t border-border pt-1.5 font-semibold">
-              <span className="text-foreground">Lucro líquido</span>
-              <span className={result.netProfit >= 0 ? 'text-accent' : 'text-danger'}>{formatBRL(result.netProfit)}</span>
-            </div>
-            {hasCommission && (
-              <>
+              {cost > 0 && (
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Sua comissão ({operation.holder!.commission_pct}%)</span>
-                  <span className="text-warning">{formatBRL(commission.commissionAmount)}</span>
+                  <span>Custo de recompra</span>
+                  <span className="text-danger">-{formatBRL(cost)}</span>
                 </div>
-                <div className="flex justify-between border-t border-border pt-1.5 font-semibold">
-                  <span className="text-foreground">Líquido para {operation.holder!.name}</span>
-                  <span className={commission.holderNetAfterCommission >= 0 ? 'text-accent' : 'text-danger'}>
-                    {formatBRL(commission.holderNetAfterCommission)}
+              )}
+              {exercised && operation.option_type === 'CALL' && !!averagePrice && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Resultado da venda (Strike − PM)</span>
+                  <span className={stockSaleResult >= 0 ? 'text-accent' : 'text-danger'}>
+                    {stockSaleResult >= 0 ? '+' : ''}
+                    {formatBRL(stockSaleResult)}
                   </span>
                 </div>
-              </>
-            )}
-          </div>
+              )}
+              <div className="flex justify-between text-muted-foreground">
+                <span>{irLabel}</span>
+                <span className="text-danger">-{formatBRL(result.ir)}</span>
+              </div>
+              <div className="flex justify-between border-t border-border pt-1.5 font-semibold">
+                <span className="text-foreground">Lucro líquido</span>
+                <span className={result.netProfit >= 0 ? 'text-accent' : 'text-danger'}>{formatBRL(result.netProfit)}</span>
+              </div>
+              {hasCommission && (
+                <>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Sua comissão ({operation.holder!.commission_pct}%)</span>
+                    <span className="text-warning">{formatBRL(commission.commissionAmount)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-border pt-1.5 font-semibold">
+                    <span className="text-foreground">Líquido para {operation.holder!.name}</span>
+                    <span className={commission.holderNetAfterCommission >= 0 ? 'text-accent' : 'text-danger'}>
+                      {formatBRL(commission.holderNetAfterCommission)}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {isRolling && cost > 0 && (
+            <div className="rounded-lg border border-border bg-surface-elevated p-3 font-tabular text-sm">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Custo de recompra desta perna</span>
+                <span className="text-danger">-{formatBRL(cost)}</span>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button disabled={saving} onClick={handleConfirm}>
-              {saving ? 'Salvando…' : 'Confirmar encerramento'}
+            <Button disabled={saving || (isRolling && !rollFormValid)} onClick={handleConfirm}>
+              {saving ? 'Salvando…' : isRolling ? 'Confirmar rolagem' : 'Confirmar encerramento'}
             </Button>
           </div>
         </div>

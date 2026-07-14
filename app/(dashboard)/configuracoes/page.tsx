@@ -1,13 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Settings, Sliders, Database, CheckCircle2, XCircle } from 'lucide-react';
+import { Settings, Sliders, Database, CheckCircle2, XCircle, Users, Plus, Trash2, Pencil, Check, X } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { getActiveScoreWeights, updateScoreWeights, getStrategySettings, updateStrategySettings } from '@/lib/supabase/queries';
-import type { ScoreWeights, StrategySettings } from '@/lib/types/database';
+import { Badge } from '@/components/ui/badge';
+import {
+  getActiveScoreWeights,
+  updateScoreWeights,
+  getStrategySettings,
+  updateStrategySettings,
+  listHolders,
+  createHolder,
+  updateHolder,
+} from '@/lib/supabase/queries';
+import type { ScoreWeights, StrategySettings, Holder } from '@/lib/types/database';
 
 type WeightKey = 'weight_delta' | 'weight_premium' | 'weight_strike_distance' | 'weight_liquidity' | 'weight_spread' | 'weight_history';
 
@@ -20,6 +29,11 @@ const WEIGHT_LABELS: { key: WeightKey; label: string }[] = [
   { key: 'weight_history', label: 'Histórico' },
 ];
 
+function parseLocaleNumber(s: string): number {
+  const n = Number(s.replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function ConfiguracoesPage() {
   const [weights, setWeights] = useState<ScoreWeights | null>(null);
   const [settings, setSettings] = useState<StrategySettings | null>(null);
@@ -28,12 +42,35 @@ export default function ConfiguracoesPage() {
   const [connectionOk, setConnectionOk] = useState<boolean | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Campos de texto locais (evita o bug de "0," virar "0" ao digitar em campo number-controlled)
+  const [settingsText, setSettingsText] = useState<Record<string, string>>({});
+  const [weightsText, setWeightsText] = useState<Record<string, string>>({});
+
+  // Titulares
+  const [holders, setHolders] = useState<Holder[]>([]);
+  const [newHolderName, setNewHolderName] = useState('');
+  const [newHolderCommission, setNewHolderCommission] = useState('');
+  const [editingHolderId, setEditingHolderId] = useState<string | null>(null);
+  const [editCommission, setEditCommission] = useState('');
+
   useEffect(() => {
     (async () => {
       try {
-        const [w, s] = await Promise.all([getActiveScoreWeights(), getStrategySettings()]);
+        const [w, s, h] = await Promise.all([getActiveScoreWeights(), getStrategySettings(), listHolders()]);
         setWeights(w);
         setSettings(s);
+        setHolders(h);
+        setSettingsText({
+          max_delta: String(s.max_delta ?? '').replace('.', ','),
+          min_delta: String(s.min_delta ?? '').replace('.', ','),
+          available_cash: s.available_cash === null ? '' : String(s.available_cash).replace('.', ','),
+          max_concentration_pct: s.max_concentration_pct === null ? '' : String(s.max_concentration_pct).replace('.', ','),
+          min_days_to_expiration: s.min_days_to_expiration === null ? '' : String(s.min_days_to_expiration),
+          max_days_to_expiration: s.max_days_to_expiration === null ? '' : String(s.max_days_to_expiration),
+        });
+        setWeightsText(
+          Object.fromEntries(WEIGHT_LABELS.map((wl) => [wl.key, String(w[wl.key]).replace('.', ',')]))
+        );
         setConnectionOk(true);
       } catch (err) {
         setConnectionOk(false);
@@ -42,16 +79,17 @@ export default function ConfiguracoesPage() {
     })();
   }, []);
 
-  const totalWeight = weights
-    ? WEIGHT_LABELS.reduce((sum, w) => sum + Number(weights[w.key]), 0)
-    : 0;
+  const totalWeight = WEIGHT_LABELS.reduce((sum, w) => sum + parseLocaleNumber(weightsText[w.key] ?? '0'), 0);
 
   async function handleSaveWeights() {
     if (!weights) return;
     setSaving(true);
     setSaved(false);
     try {
-      const updated = await updateScoreWeights(weights.id, weights);
+      const patch = Object.fromEntries(
+        WEIGHT_LABELS.map((w) => [w.key, parseLocaleNumber(weightsText[w.key] ?? '0')])
+      );
+      const updated = await updateScoreWeights(weights.id, patch);
       setWeights(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -65,13 +103,53 @@ export default function ConfiguracoesPage() {
     setSaving(true);
     setSaved(false);
     try {
-      const updated = await updateStrategySettings(settings.id, settings);
+      const updated = await updateStrategySettings(settings.id, {
+        max_delta: parseLocaleNumber(settingsText.max_delta ?? '0'),
+        min_delta: parseLocaleNumber(settingsText.min_delta ?? '0'),
+        available_cash: settingsText.available_cash?.trim() ? parseLocaleNumber(settingsText.available_cash) : null,
+        max_concentration_pct: settingsText.max_concentration_pct?.trim()
+          ? parseLocaleNumber(settingsText.max_concentration_pct)
+          : null,
+        min_days_to_expiration: settingsText.min_days_to_expiration?.trim()
+          ? Math.round(parseLocaleNumber(settingsText.min_days_to_expiration))
+          : null,
+        max_days_to_expiration: settingsText.max_days_to_expiration?.trim()
+          ? Math.round(parseLocaleNumber(settingsText.max_days_to_expiration))
+          : null,
+      });
       setSettings(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleAddHolder() {
+    if (!newHolderName.trim()) return;
+    const holder = await createHolder({
+      name: newHolderName.trim(),
+      commissionPct: parseLocaleNumber(newHolderCommission || '0'),
+    });
+    setHolders((prev) => [...prev, holder]);
+    setNewHolderName('');
+    setNewHolderCommission('');
+  }
+
+  async function handleRemoveHolder(id: string) {
+    const updated = await updateHolder(id, { active: false });
+    setHolders((prev) => prev.filter((h) => h.id !== updated.id));
+  }
+
+  function startEditCommission(h: Holder) {
+    setEditingHolderId(h.id);
+    setEditCommission(String(h.commission_pct).replace('.', ','));
+  }
+
+  async function saveEditCommission(id: string) {
+    const updated = await updateHolder(id, { commission_pct: parseLocaleNumber(editCommission) });
+    setHolders((prev) => prev.map((h) => (h.id === id ? updated : h)));
+    setEditingHolderId(null);
   }
 
   return (
@@ -125,48 +203,48 @@ export default function ConfiguracoesPage() {
               <Label>Delta máximo</Label>
               <Input
                 className="font-tabular"
-                value={settings.max_delta}
-                onChange={(e) => setSettings({ ...settings, max_delta: Number(e.target.value) || 0 })}
+                value={settingsText.max_delta ?? ''}
+                onChange={(e) => setSettingsText((t) => ({ ...t, max_delta: e.target.value }))}
               />
             </div>
             <div className="space-y-1">
               <Label>Delta mínimo</Label>
               <Input
                 className="font-tabular"
-                value={settings.min_delta}
-                onChange={(e) => setSettings({ ...settings, min_delta: Number(e.target.value) || 0 })}
+                value={settingsText.min_delta ?? ''}
+                onChange={(e) => setSettingsText((t) => ({ ...t, min_delta: e.target.value }))}
               />
             </div>
             <div className="space-y-1">
               <Label>Caixa disponível (R$)</Label>
               <Input
                 className="font-tabular"
-                value={settings.available_cash ?? ''}
-                onChange={(e) => setSettings({ ...settings, available_cash: Number(e.target.value) || null })}
+                value={settingsText.available_cash ?? ''}
+                onChange={(e) => setSettingsText((t) => ({ ...t, available_cash: e.target.value }))}
               />
             </div>
             <div className="space-y-1">
               <Label>Concentração máxima por operação (%)</Label>
               <Input
                 className="font-tabular"
-                value={settings.max_concentration_pct ?? ''}
-                onChange={(e) => setSettings({ ...settings, max_concentration_pct: Number(e.target.value) || null })}
+                value={settingsText.max_concentration_pct ?? ''}
+                onChange={(e) => setSettingsText((t) => ({ ...t, max_concentration_pct: e.target.value }))}
               />
             </div>
             <div className="space-y-1">
               <Label>Dias mín. até o vencimento</Label>
               <Input
                 className="font-tabular"
-                value={settings.min_days_to_expiration ?? ''}
-                onChange={(e) => setSettings({ ...settings, min_days_to_expiration: Number(e.target.value) || null })}
+                value={settingsText.min_days_to_expiration ?? ''}
+                onChange={(e) => setSettingsText((t) => ({ ...t, min_days_to_expiration: e.target.value }))}
               />
             </div>
             <div className="space-y-1">
               <Label>Dias máx. até o vencimento</Label>
               <Input
                 className="font-tabular"
-                value={settings.max_days_to_expiration ?? ''}
-                onChange={(e) => setSettings({ ...settings, max_days_to_expiration: Number(e.target.value) || null })}
+                value={settingsText.max_days_to_expiration ?? ''}
+                onChange={(e) => setSettingsText((t) => ({ ...t, max_days_to_expiration: e.target.value }))}
               />
             </div>
             <div className="sm:col-span-2">
@@ -177,6 +255,83 @@ export default function ConfiguracoesPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Users className="h-4 w-4 text-accent" />
+            Titulares
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-2">
+            {holders.map((h) => (
+              <div
+                key={h.id}
+                className="flex items-center justify-between rounded-lg border border-border bg-surface-elevated px-3 py-2.5"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-foreground">{h.name}</span>
+                  {h.is_self && <Badge variant="success">você</Badge>}
+                </div>
+                <div className="flex items-center gap-2.5">
+                  {!h.is_self &&
+                    (editingHolderId === h.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          value={editCommission}
+                          onChange={(e) => setEditCommission(e.target.value)}
+                          autoFocus
+                          className="w-14 rounded-md border border-accent bg-surface px-1.5 py-1 font-tabular text-xs text-foreground outline-none"
+                        />
+                        <span className="text-xs text-muted-foreground">%</span>
+                        <button onClick={() => saveEditCommission(h.id)} className="text-accent">
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                        <button onClick={() => setEditingHolderId(null)} className="text-muted-foreground">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => startEditCommission(h)}
+                        className="flex items-center gap-1 font-tabular text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        comissão {String(h.commission_pct).replace('.', ',')}%
+                        <Pencil className="h-2.5 w-2.5" />
+                      </button>
+                    ))}
+                  {!h.is_self && (
+                    <button onClick={() => handleRemoveHolder(h.id)} className="text-faint-foreground hover:text-danger">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-end gap-2">
+            <div className="flex-[2] space-y-1">
+              <Label>Novo titular</Label>
+              <Input value={newHolderName} onChange={(e) => setNewHolderName(e.target.value)} placeholder="Nome" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <Label>Comissão (%)</Label>
+              <Input
+                className="font-tabular"
+                value={newHolderCommission}
+                onChange={(e) => setNewHolderCommission(e.target.value)}
+                placeholder="15"
+              />
+            </div>
+            <Button size="sm" onClick={handleAddHolder} disabled={!newHolderName.trim()}>
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              Adicionar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {weights && (
         <Card>
@@ -193,8 +348,8 @@ export default function ConfiguracoesPage() {
                   <Label>{w.label}</Label>
                   <Input
                     className="font-tabular"
-                    value={weights[w.key]}
-                    onChange={(e) => setWeights({ ...weights, [w.key]: Number(e.target.value) || 0 })}
+                    value={weightsText[w.key] ?? ''}
+                    onChange={(e) => setWeightsText((t) => ({ ...t, [w.key]: e.target.value }))}
                   />
                 </div>
               ))}

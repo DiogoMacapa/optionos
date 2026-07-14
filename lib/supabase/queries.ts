@@ -12,6 +12,8 @@ import type {
   StockPosition,
   Withdrawal,
   NamedStrategy,
+  EquitySnapshot,
+  CommissionSummary,
 } from '@/lib/types/database';
 
 // ---------------------------------------------------------------
@@ -341,9 +343,10 @@ async function closeOperationRolled(id: string, buybackCost: number, netProfit: 
 }
 
 // ---------------------------------------------------------------
-// Equity snapshots
+// Equity snapshots (por titular)
 // ---------------------------------------------------------------
 export async function upsertTodayEquitySnapshot(values: {
+  holderId: string;
   totalEquity: number;
   freeCash: number;
   committedCapital: number;
@@ -354,15 +357,30 @@ export async function upsertTodayEquitySnapshot(values: {
   const { error } = await supabase.from('equity_snapshots').upsert(
     {
       recorded_at: today,
+      holder_id: values.holderId,
       total_equity: values.totalEquity,
       free_cash: values.freeCash,
       committed_capital: values.committedCapital,
       cumulative_premiums: values.cumulativePremiums,
       cumulative_profit: values.cumulativeProfit,
     },
-    { onConflict: 'recorded_at' }
+    { onConflict: 'holder_id,recorded_at' }
   );
   if (error) throw error;
+}
+
+export async function listEquitySnapshots(holderId?: string): Promise<EquitySnapshot[]> {
+  let query = supabase.from('equity_snapshots').select('*').order('recorded_at', { ascending: true });
+  if (holderId) query = query.eq('holder_id', holderId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getCommissionSummary(): Promise<CommissionSummary[]> {
+  const { data, error } = await supabase.from('commission_summary').select('*');
+  if (error) throw error;
+  return data ?? [];
 }
 
 // ---------------------------------------------------------------

@@ -16,26 +16,31 @@ import { KpiCard } from '@/components/dashboard/kpi-card';
 import { LineChartCard } from '@/components/dashboard/line-chart-card';
 import { PieChartCard } from '@/components/dashboard/pie-chart-card';
 import { BarChartCard } from '@/components/dashboard/bar-chart-card';
-import { AreaChartCard } from '@/components/dashboard/area-chart-card';
 import { Button } from '@/components/ui/button';
 import { AiAnalysisDialog } from '@/components/shared/ai-analysis-dialog';
-import { useDashboardData, computeKpis } from '@/lib/hooks/use-dashboard-data';
+import { useDashboardData, computeKpis, filterByHolder } from '@/lib/hooks/use-dashboard-data';
 import { buildPortfolioAnalysisPrompt } from '@/lib/ai/prompt-builder';
 import { formatBRL, formatPct } from '@/lib/utils';
 
 export default function DashboardPage() {
-  const { operations, equityHistory, loading, error } = useDashboardData();
-  const kpis = computeKpis(operations, equityHistory);
+  const { operations: allOperations, equityHistory: allEquityHistory, holders, loading, error } = useDashboardData();
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
+  const [holderFilter, setHolderFilter] = useState<string | null>(null); // null = todos
+
+  const { operations, equityHistory } = filterByHolder(allOperations, allEquityHistory, holderFilter);
+  const kpis = computeKpis(operations, equityHistory);
 
   const equitySeries = equityHistory.map((e) => ({ date: e.recorded_at, value: e.total_equity }));
   const premiumSeries = equityHistory.map((e) => ({ date: e.recorded_at, value: e.cumulative_premiums }));
   const profitSeries = equityHistory.map((e) => ({ date: e.recorded_at, value: e.cumulative_profit }));
-  const equityCashSeries = equityHistory.map((e) => ({
-    date: e.recorded_at,
-    equity: e.total_equity,
-    cash: e.free_cash,
-  }));
+
+  const latestEquity = equityHistory[equityHistory.length - 1];
+  const equityCompositionData = latestEquity
+    ? [
+        { name: 'Comprometido', value: latestEquity.committed_capital, color: 'var(--info)' },
+        { name: 'Caixa livre', value: latestEquity.free_cash, color: 'var(--accent)' },
+      ]
+    : [];
 
   const exercisedCount = operations.filter((o) => o.exercised).length;
   const nonExercisedCount = operations.filter((o) => o.status !== 'aberta' && !o.exercised).length;
@@ -76,17 +81,45 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Visão geral da carteira de opções.</p>
+          <p className="text-sm text-muted-foreground">
+            {holderFilter === null ? 'Soma de todos os titulares.' : `Apenas operações de ${holders.find((h) => h.id === holderFilter)?.name}.`}
+          </p>
         </div>
-        {operations.length > 0 && (
-          <Button variant="secondary" size="sm" onClick={() => setAnalyzeOpen(true)}>
-            <Sparkles className="h-3.5 w-3.5 text-accent" />
-            Analisar Carteira
-          </Button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {holders.length > 1 && (
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-0.5">
+              <button
+                onClick={() => setHolderFilter(null)}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  holderFilter === null ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
+                }`}
+              >
+                Todos
+              </button>
+              {holders.map((h) => (
+                <button
+                  key={h.id}
+                  onClick={() => setHolderFilter(h.id)}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    holderFilter === h.id ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
+                  }`}
+                >
+                  {h.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {operations.length > 0 && (
+            <Button variant="secondary" size="sm" onClick={() => setAnalyzeOpen(true)}>
+              <Sparkles className="h-3.5 w-3.5 text-accent" />
+              Analisar Carteira
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -118,7 +151,7 @@ export default function DashboardPage() {
         <LineChartCard title="Evolução Patrimonial" data={equitySeries} />
         <LineChartCard title="Evolução dos Prêmios" data={premiumSeries} color="var(--info)" />
         <LineChartCard title="Evolução do Lucro" data={profitSeries} color="var(--accent)" />
-        <AreaChartCard title="Patrimônio × Caixa" data={equityCashSeries} />
+        <PieChartCard title="Patrimônio × Caixa" data={equityCompositionData} emptyLabel="Sem snapshot de patrimônio ainda." />
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -151,7 +184,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/50 px-4 py-2.5">
           <Percent className="h-3.5 w-3.5 text-faint-foreground" />
           <p className="text-xs text-faint-foreground">
-            Os gráficos de evolução ganham forma assim que houver pelo menos 2 registros de patrimônio (equity_snapshots).
+            Os gráficos de evolução ganham forma assim que houver pelo menos 2 registros de patrimônio para este titular (equity_snapshots).
           </p>
         </div>
       )}

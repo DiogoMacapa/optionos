@@ -1,12 +1,19 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Layers, ChevronDown, ChevronUp } from 'lucide-react';
+import { Layers, Briefcase, ChevronDown, ChevronUp } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { OperationRow } from '@/components/operations/operation-row';
+import { ExpirationGroup, groupByExpiration } from '@/components/operations/expiration-group';
 import { CloseOperationDialog } from '@/components/operations/close-operation-dialog';
-import { listOperations, closeOperation, getStockPosition, type CloseOperationInput } from '@/lib/supabase/queries';
-import { daysBetween } from '@/lib/calculations/finance';
+import { MyStocksTab } from '@/components/operations/my-stocks-tab';
+import {
+  listOperations,
+  closeOperation,
+  rollOperation,
+  getStockPosition,
+  type CloseOperationInput,
+  type NewOperationInput,
+} from '@/lib/supabase/queries';
 import type { Operation, OperationStatus } from '@/lib/types/database';
 
 const STATUS_TABS: { value: OperationStatus | 'todas'; label: string }[] = [
@@ -18,6 +25,7 @@ const STATUS_TABS: { value: OperationStatus | 'todas'; label: string }[] = [
 ];
 
 export default function OperacoesPage() {
+  const [mainTab, setMainTab] = useState<'operacoes' | 'acoes'>('operacoes');
   const [operations, setOperations] = useState<Operation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +85,8 @@ export default function OperacoesPage() {
     );
   }, [operations, tab, holderFilter, sortDesc]);
 
+  const grouped = useMemo(() => groupByExpiration(filtered), [filtered]);
+
   const counts = useMemo(() => {
     const c: Record<string, number> = { todas: operations.length };
     for (const o of operations) c[o.status] = (c[o.status] ?? 0) + 1;
@@ -85,6 +95,14 @@ export default function OperacoesPage() {
 
   async function handleClose(input: CloseOperationInput) {
     await closeOperation(input);
+    setClosingOp(null);
+    setClosingOpAveragePrice(null);
+    await refresh();
+  }
+
+  async function handleRoll(buybackCost: number, newOperation: NewOperationInput) {
+    if (!closingOp) return;
+    await rollOperation({ originalId: closingOp.id, newOperation, buybackCost });
     setClosingOp(null);
     setClosingOpAveragePrice(null);
     await refresh();
@@ -108,88 +126,108 @@ export default function OperacoesPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-lg font-semibold tracking-tight">Operações</h1>
-        <p className="text-sm text-muted-foreground">Acompanhamento das operações abertas e encerradas.</p>
+        <p className="text-sm text-muted-foreground">Agrupadas por vencimento, com posições em ações à parte.</p>
       </div>
 
-      {error && (
-        <div className="rounded-lg border border-danger/20 bg-danger-muted px-4 py-3 text-sm text-danger">
-          {error}
-        </div>
-      )}
+      <div className="flex w-fit items-center gap-1 rounded-lg border border-border bg-surface p-1">
+        <button
+          onClick={() => setMainTab('operacoes')}
+          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+            mainTab === 'operacoes' ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
+          }`}
+        >
+          <Layers className="h-3.5 w-3.5" />
+          Operações
+        </button>
+        <button
+          onClick={() => setMainTab('acoes')}
+          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+            mainTab === 'acoes' ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
+          }`}
+        >
+          <Briefcase className="h-3.5 w-3.5" />
+          Minhas Ações
+        </button>
+      </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as OperationStatus | 'todas')}>
-          <TabsList>
-            {STATUS_TABS.map((t) => (
-              <TabsTrigger key={t.value} value={t.value}>
-                {t.label}
-                {counts[t.value] ? (
-                  <span className="ml-1.5 rounded-full bg-surface px-1.5 text-[10px] text-faint-foreground">
-                    {counts[t.value]}
-                  </span>
-                ) : null}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+      {mainTab === 'acoes' ? (
+        <MyStocksTab />
+      ) : (
+        <>
+          {error && (
+            <div className="rounded-lg border border-danger/20 bg-danger-muted px-4 py-3 text-sm text-danger">{error}</div>
+          )}
 
-        <div className="flex items-center gap-3">
-          {holders.length > 1 && (
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-0.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Tabs value={tab} onValueChange={(v) => setTab(v as OperationStatus | 'todas')}>
+              <TabsList>
+                {STATUS_TABS.map((t) => (
+                  <TabsTrigger key={t.value} value={t.value}>
+                    {t.label}
+                    {counts[t.value] ? (
+                      <span className="ml-1.5 rounded-full bg-surface px-1.5 text-[10px] text-faint-foreground">
+                        {counts[t.value]}
+                      </span>
+                    ) : null}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+
+            <div className="flex items-center gap-3">
+              {holders.length > 1 && (
+                <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-0.5">
+                  <button
+                    onClick={() => setHolderFilter('todos')}
+                    className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                      holderFilter === 'todos' ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
+                    }`}
+                  >
+                    Todos
+                  </button>
+                  {holders.map((h) => (
+                    <button
+                      key={h.id}
+                      onClick={() => setHolderFilter(h.id)}
+                      className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                        holderFilter === h.id ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
+                      }`}
+                    >
+                      {h.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <button
-                onClick={() => setHolderFilter('todos')}
-                className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-                  holderFilter === 'todos' ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
-                }`}
+                onClick={() => setSortDesc((s) => !s)}
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-surface-hover"
               >
-                Todos
+                {sortDesc ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+                Data de abertura
               </button>
-              {holders.map((h) => (
-                <button
-                  key={h.id}
-                  onClick={() => setHolderFilter(h.id)}
-                  className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-                    holderFilter === h.id ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
-                  }`}
-                >
-                  {h.name}
-                </button>
-              ))}
+            </div>
+          </div>
+
+          {!loading && filtered.length === 0 && !error && (
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-surface px-6 py-14 text-center">
+              <Layers className="h-8 w-8 text-faint-foreground" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Nenhuma operação {tab !== 'todas' ? `com status "${tab}"` : ''}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Abra uma operação a partir de uma oportunidade no ranking.</p>
+              </div>
             </div>
           )}
 
-          <button
-            onClick={() => setSortDesc((s) => !s)}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-surface-hover"
-          >
-            {sortDesc ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
-            Data de abertura
-          </button>
-        </div>
-      </div>
-
-      {!loading && filtered.length === 0 && !error && (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-surface px-6 py-14 text-center">
-          <Layers className="h-8 w-8 text-faint-foreground" />
-          <div>
-            <p className="text-sm font-medium text-foreground">Nenhuma operação {tab !== 'todas' ? `com status "${tab}"` : ''}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Abra uma operação a partir de uma oportunidade no ranking.
-            </p>
+          <div className="flex flex-col gap-1">
+            {grouped.map(([expiration, ops], i) => (
+              <div key={expiration} className={i > 0 ? 'border-t border-border pt-1' : ''}>
+                <ExpirationGroup expiration={expiration} operations={ops} onClose={handleOpenClose} defaultOpen={i < 2} />
+              </div>
+            ))}
           </div>
-        </div>
+        </>
       )}
-
-      <div className="flex flex-col gap-2">
-        {filtered.map((op) => (
-          <OperationRow
-            key={op.id}
-            operation={op}
-            daysRemaining={daysBetween(new Date(), op.expiration)}
-            onClose={() => handleOpenClose(op)}
-          />
-        ))}
-      </div>
 
       {closingOp && (
         <CloseOperationDialog
@@ -202,6 +240,7 @@ export default function OperacoesPage() {
             }
           }}
           onConfirm={handleClose}
+          onRoll={handleRoll}
           averagePrice={closingOpAveragePrice}
         />
       )}
