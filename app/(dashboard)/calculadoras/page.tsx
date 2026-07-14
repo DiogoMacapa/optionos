@@ -13,14 +13,11 @@ import {
   calculatePremiumRate,
   calculateStrikeDistance,
 } from '@/lib/calculations/finance';
-import { formatBRL, formatPct } from '@/lib/utils';
+import { formatBRL, formatPct, parseBRNumber } from '@/lib/utils';
 
 function useNumberField(initial = '') {
   const [raw, setRaw] = useState(initial);
-  const value = useMemo(() => {
-    const n = Number(raw.replace(',', '.'));
-    return Number.isFinite(n) ? n : 0;
-  }, [raw]);
+  const value = useMemo(() => parseBRNumber(raw), [raw]);
   return { raw, setRaw, value };
 }
 

@@ -16,6 +16,7 @@ import { useChartOcr } from '@/lib/hooks/use-chart-ocr';
 import { useBookOcr } from '@/lib/hooks/use-book-ocr';
 import { calculateScore } from '@/lib/scoring/engine';
 import { buildOperationAnalysisPrompt } from '@/lib/ai/prompt-builder';
+import { parseBRNumber } from '@/lib/utils';
 import {
   findOrCreateAsset,
   createMarketSnapshot,
@@ -124,7 +125,7 @@ export default function OportunidadesPage() {
     if (!assetId) return;
     setSaving(true);
     try {
-      const num = (v: string) => (v === '' ? null : Number(v.replace(',', '.')));
+      const num = (v: string) => (v === '' ? null : parseBRNumber(v));
       const snapshot = await createMarketSnapshot({
         assetId,
         source: 'investing',

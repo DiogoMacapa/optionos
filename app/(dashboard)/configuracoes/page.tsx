@@ -29,10 +29,7 @@ const WEIGHT_LABELS: { key: WeightKey; label: string }[] = [
   { key: 'weight_history', label: 'Histórico' },
 ];
 
-function parseLocaleNumber(s: string): number {
-  const n = Number(s.replace(',', '.'));
-  return Number.isFinite(n) ? n : 0;
-}
+import { parseBRNumber } from '@/lib/utils';
 
 export default function ConfiguracoesPage() {
   const [weights, setWeights] = useState<ScoreWeights | null>(null);
@@ -79,7 +76,7 @@ export default function ConfiguracoesPage() {
     })();
   }, []);
 
-  const totalWeight = WEIGHT_LABELS.reduce((sum, w) => sum + parseLocaleNumber(weightsText[w.key] ?? '0'), 0);
+  const totalWeight = WEIGHT_LABELS.reduce((sum, w) => sum + parseBRNumber(weightsText[w.key] ?? '0'), 0);
 
   async function handleSaveWeights() {
     if (!weights) return;
@@ -87,7 +84,7 @@ export default function ConfiguracoesPage() {
     setSaved(false);
     try {
       const patch = Object.fromEntries(
-        WEIGHT_LABELS.map((w) => [w.key, parseLocaleNumber(weightsText[w.key] ?? '0')])
+        WEIGHT_LABELS.map((w) => [w.key, parseBRNumber(weightsText[w.key] ?? '0')])
       );
       const updated = await updateScoreWeights(weights.id, patch);
       setWeights(updated);
@@ -104,17 +101,17 @@ export default function ConfiguracoesPage() {
     setSaved(false);
     try {
       const updated = await updateStrategySettings(settings.id, {
-        max_delta: parseLocaleNumber(settingsText.max_delta ?? '0'),
-        min_delta: parseLocaleNumber(settingsText.min_delta ?? '0'),
-        available_cash: settingsText.available_cash?.trim() ? parseLocaleNumber(settingsText.available_cash) : null,
+        max_delta: parseBRNumber(settingsText.max_delta ?? '0'),
+        min_delta: parseBRNumber(settingsText.min_delta ?? '0'),
+        available_cash: settingsText.available_cash?.trim() ? parseBRNumber(settingsText.available_cash) : null,
         max_concentration_pct: settingsText.max_concentration_pct?.trim()
-          ? parseLocaleNumber(settingsText.max_concentration_pct)
+          ? parseBRNumber(settingsText.max_concentration_pct)
           : null,
         min_days_to_expiration: settingsText.min_days_to_expiration?.trim()
-          ? Math.round(parseLocaleNumber(settingsText.min_days_to_expiration))
+          ? Math.round(parseBRNumber(settingsText.min_days_to_expiration))
           : null,
         max_days_to_expiration: settingsText.max_days_to_expiration?.trim()
-          ? Math.round(parseLocaleNumber(settingsText.max_days_to_expiration))
+          ? Math.round(parseBRNumber(settingsText.max_days_to_expiration))
           : null,
       });
       setSettings(updated);
@@ -129,7 +126,7 @@ export default function ConfiguracoesPage() {
     if (!newHolderName.trim()) return;
     const holder = await createHolder({
       name: newHolderName.trim(),
-      commissionPct: parseLocaleNumber(newHolderCommission || '0'),
+      commissionPct: parseBRNumber(newHolderCommission || '0'),
     });
     setHolders((prev) => [...prev, holder]);
     setNewHolderName('');
@@ -147,7 +144,7 @@ export default function ConfiguracoesPage() {
   }
 
   async function saveEditCommission(id: string) {
-    const updated = await updateHolder(id, { commission_pct: parseLocaleNumber(editCommission) });
+    const updated = await updateHolder(id, { commission_pct: parseBRNumber(editCommission) });
     setHolders((prev) => prev.map((h) => (h.id === id ? updated : h)));
     setEditingHolderId(null);
   }

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { parseBRNumber } from '@/lib/utils';
 import type { ParsedOptionRow } from '@/lib/ocr/book-parser';
 
 export interface EditableBookRow extends ParsedOptionRow {
@@ -40,7 +41,7 @@ export function BookConfirmTable({ rows, onConfirm, onCancel }: BookConfirmTable
       prev.map((row, i) => {
         if (i !== idx) return row;
         const numeric = key === 'strike' || key === 'delta' || key === 'premium' || key === 'bid' || key === 'ask' || key === 'volume' || key === 'openInterest';
-        return { ...row, [key]: numeric ? (value === '' ? null : Number(value)) : value };
+        return { ...row, [key]: numeric ? (value === '' ? null : parseBRNumber(value)) : value };
       })
     );
   };

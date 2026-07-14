@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { calculateNetProfit, calculateStockSaleResult, calculateCommission } from '@/lib/calculations/finance';
-import { formatBRL } from '@/lib/utils';
+import { formatBRL, parseBRNumber } from '@/lib/utils';
 import { GlossaryTerm } from '@/components/shared/glossary-term';
 import type { Operation } from '@/lib/types/database';
 import type { CloseOperationInput, NewOperationInput } from '@/lib/supabase/queries';
@@ -25,11 +25,6 @@ interface CloseOperationDialogProps {
 }
 
 type OutcomeType = 'expirou' | 'recomprou' | 'exercida' | 'rolou';
-
-function parseLocaleNumber(s: string): number {
-  const n = Number(s.replace(',', '.'));
-  return Number.isFinite(n) ? n : 0;
-}
 
 export function CloseOperationDialog({
   operation,
@@ -50,7 +45,7 @@ export function CloseOperationDialog({
   const [rollExpiration, setRollExpiration] = useState('');
 
   const totalPremium = operation.premium_received;
-  const cost = outcome === 'expirou' ? 0 : Number(buybackCost.replace(',', '.')) || 0;
+  const cost = outcome === 'expirou' ? 0 : parseBRNumber(buybackCost);
   const exercised = outcome === 'exercida';
   const isRolling = outcome === 'rolou';
   const hasCommission = !!operation.holder && !operation.holder.is_self && operation.holder.commission_pct > 0;
@@ -93,10 +88,10 @@ export function CloseOperationDialog({
           holderId: operation.holder_id,
           opportunityId: null,
           optionType: operation.option_type,
-          strike: parseLocaleNumber(rollStrike),
+          strike: parseBRNumber(rollStrike),
           expiration: rollExpiration,
-          quantity: Math.round(parseLocaleNumber(rollQuantity)),
-          premiumReceived: parseLocaleNumber(rollPremium) * Math.round(parseLocaleNumber(rollQuantity)),
+          quantity: Math.round(parseBRNumber(rollQuantity)),
+          premiumReceived: parseBRNumber(rollPremium) * Math.round(parseBRNumber(rollQuantity)),
           deltaAtOpen: null,
           committedCapital: operation.committed_capital,
           stockPositionId: operation.stock_position_id,

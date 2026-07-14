@@ -7,14 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { formatBRL } from '@/lib/utils';
+import { formatBRL, parseBRNumber } from '@/lib/utils';
 import { listStockPositions, upsertStockPosition, closeStockPosition, findOrCreateAsset, listHolders } from '@/lib/supabase/queries';
 import type { StockPosition, Holder } from '@/lib/types/database';
-
-function parseLocaleNumber(s: string): number {
-  const n = Number(s.replace(',', '.'));
-  return Number.isFinite(n) ? n : 0;
-}
 
 export function MyStocksTab() {
   const [positions, setPositions] = useState<StockPosition[]>([]);
@@ -73,8 +68,8 @@ export function MyStocksTab() {
       await upsertStockPosition({
         assetId: asset.id,
         holderId,
-        quantity: Math.round(parseLocaleNumber(qty)),
-        averagePrice: parseLocaleNumber(avg),
+        quantity: Math.round(parseBRNumber(qty)),
+        averagePrice: parseBRNumber(avg),
       });
       setTicker('');
       setQty('');
