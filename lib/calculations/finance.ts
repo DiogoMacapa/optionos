@@ -4,8 +4,15 @@
 // IMPORTANTE: aqui "quantidade" é sempre o número de AÇÕES,
 // exatamente como na planilha real do usuário (coluna "Qnt":
 // 33800, 9100, etc.) — não é número de contratos de 100 ações.
-// Nunca multiplicar por um tamanho de lote.
+// Nunca multiplicar por um tamanho de lote ao calcular capital.
+//
+// Porém: na B3, ações só operam em lote-padrão de 100 (exceto
+// mercado fracionário, que não é o caso de venda coberta). Por
+// isso a quantidade MÁXIMA calculada a partir do caixa precisa
+// ser arredondada para baixo até o múltiplo de 100 mais próximo.
 // ============================================================
+
+const ROUND_LOT = 100;
 
 export interface MaxContractsInput {
   availableCash: number;
@@ -14,7 +21,8 @@ export interface MaxContractsInput {
 
 export function calculateMaxContracts({ availableCash, strike }: MaxContractsInput): number {
   if (strike <= 0) return 0;
-  return Math.floor(availableCash / strike);
+  const rawQuantity = Math.floor(availableCash / strike);
+  return Math.floor(rawQuantity / ROUND_LOT) * ROUND_LOT;
 }
 
 export interface RequiredCapitalInput {
