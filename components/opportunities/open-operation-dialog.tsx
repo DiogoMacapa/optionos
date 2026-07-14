@@ -99,7 +99,7 @@ export function OpenOperationDialog({ opportunity, open, onOpenChange, available
           )}
 
           <div className="space-y-1">
-            <Label htmlFor="qty">Quantidade de contratos</Label>
+            <Label htmlFor="qty">Quantidade de ações</Label>
             <Input id="qty" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="font-tabular" />
             {maxContracts !== null && (
               <p className="text-xs text-faint-foreground">Máximo com seu caixa configurado: {maxContracts}</p>

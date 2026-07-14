@@ -1,8 +1,11 @@
 // ============================================================
 // OptionOS — Calculadoras financeiras
+//
+// IMPORTANTE: aqui "quantidade" é sempre o número de AÇÕES,
+// exatamente como na planilha real do usuário (coluna "Qnt":
+// 33800, 9100, etc.) — não é número de contratos de 100 ações.
+// Nunca multiplicar por um tamanho de lote.
 // ============================================================
-
-const CONTRACT_SIZE = 100; // 1 contrato de opção = 100 ações no Brasil
 
 export interface MaxContractsInput {
   availableCash: number;
@@ -10,9 +13,8 @@ export interface MaxContractsInput {
 }
 
 export function calculateMaxContracts({ availableCash, strike }: MaxContractsInput): number {
-  const capitalPerContract = strike * CONTRACT_SIZE;
-  if (capitalPerContract <= 0) return 0;
-  return Math.floor(availableCash / capitalPerContract);
+  if (strike <= 0) return 0;
+  return Math.floor(availableCash / strike);
 }
 
 export interface RequiredCapitalInput {
@@ -21,7 +23,7 @@ export interface RequiredCapitalInput {
 }
 
 export function calculateRequiredCapital({ strike, quantity }: RequiredCapitalInput): number {
-  return strike * CONTRACT_SIZE * quantity;
+  return strike * quantity;
 }
 
 export interface ExpectedPremiumInput {
@@ -30,7 +32,7 @@ export interface ExpectedPremiumInput {
 }
 
 export function calculateExpectedPremium({ premium, quantity }: ExpectedPremiumInput): number {
-  return premium * CONTRACT_SIZE * quantity;
+  return premium * quantity;
 }
 
 /**
@@ -168,17 +170,17 @@ export function calculatePremiumRate(optionType: OptionType, premium: number, qu
   return premium / base;
 }
 
-/** Garantia exigida para uma PUT Cash Secured: Strike × Qtd × 100. */
+/** Garantia exigida para uma PUT Cash Secured: Strike × Qtd. */
 export function calculateGuarantee(strike: number, quantity: number): number {
-  return strike * CONTRACT_SIZE * quantity;
+  return strike * quantity;
 }
 
 /**
  * Resultado da venda das ações quando uma CALL é exercida:
- * (Strike - PM) × Qtd × 100. Pode ser negativo se Strike < PM.
+ * (Strike - PM) × Qtd. Pode ser negativo se Strike < PM.
  */
 export function calculateStockSaleResult(strike: number, averagePrice: number, quantity: number): number {
-  return (strike - averagePrice) * CONTRACT_SIZE * quantity;
+  return (strike - averagePrice) * quantity;
 }
 
 // ============================================================
