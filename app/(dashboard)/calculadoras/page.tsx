@@ -107,19 +107,7 @@ export default function CalculadorasPage() {
           <thead>
             <tr className="text-left">
               <Th width={90}>Ativo</Th>
-              <Th width={110}>
-                Cotação
-                <span className="mt-0.5 block text-[9px] font-normal text-faint-foreground">
-                  <a
-                    href="https://www.google.com/finance"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-0.5 text-accent hover:underline"
-                  >
-                    Google Finance <ExternalLink className="h-2.5 w-2.5" />
-                  </a>
-                </span>
-              </Th>
+              <Th width={110}>Cotação</Th>
               <Th width={100}>Caixa</Th>
               <Th width={100}>Strike</Th>
               <Th width={100}>Preço Teto</Th>
@@ -152,6 +140,16 @@ export default function CalculadorasPage() {
                       placeholder="0,00"
                       className="font-tabular h-8 text-xs"
                     />
+                    {row.ticker.trim() && (
+                      <a
+                        href={`https://www.google.com/finance/quote/${row.ticker.trim()}:BVMF`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-0.5 inline-flex items-center gap-0.5 text-[9px] text-accent hover:underline"
+                      >
+                        ver {row.ticker.trim()} <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
+                    )}
                   </Td>
                   <Td>
                     <span className="font-tabular text-xs text-muted-foreground">{formatBRL(cash)}</span>
