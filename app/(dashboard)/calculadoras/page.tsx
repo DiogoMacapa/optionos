@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Calculator, Plus, Trash2, ExternalLink, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { cn, formatBRL, formatPct, parseBRNumber } from '@/lib/utils';
 
 const ROUND_LOT = 100;
+const STORAGE_KEY_ROWS = 'optionos:calculadoras:rows';
+const STORAGE_KEY_CASH = 'optionos:calculadoras:cash';
 
 interface CalcRow {
   id: number;
@@ -50,12 +52,50 @@ function calcRow(row: CalcRow, cash: number) {
   return { quantity, guarantee, totalPremium, taxaSobreCaixa, rentabLiquida, exceedsCeiling };
 }
 
+function loadInitialRows(): CalcRow[] {
+  if (typeof window === 'undefined') return INITIAL_ROWS;
+  try {
+    const saved = window.localStorage.getItem(STORAGE_KEY_ROWS);
+    if (!saved) return INITIAL_ROWS;
+    const parsed = JSON.parse(saved) as CalcRow[];
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_ROWS;
+  } catch {
+    return INITIAL_ROWS;
+  }
+}
+
+function loadInitialCash(): string {
+  if (typeof window === 'undefined') return '150000';
+  try {
+    return window.localStorage.getItem(STORAGE_KEY_CASH) ?? '150000';
+  } catch {
+    return '150000';
+  }
+}
+
 export default function CalculadorasPage() {
-  const [cashRaw, setCashRaw] = useState('150000');
+  const [cashRaw, setCashRaw] = useState(loadInitialCash);
   const cash = parseBRNumber(cashRaw);
-  const [rows, setRows] = useState<CalcRow[]>(INITIAL_ROWS);
+  const [rows, setRows] = useState<CalcRow[]>(loadInitialRows);
   const [quoteStatus, setQuoteStatus] = useState<Record<number, 'loading' | 'error' | null>>({});
   const [quoteError, setQuoteError] = useState<Record<number, string>>({});
+
+  // Persiste a cada mudança de linhas/caixa.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(rows));
+    } catch {
+      // Ignora falha de persistência (ex: modo privado sem quota).
+    }
+  }, [rows]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY_CASH, cashRaw);
+    } catch {
+      // Ignora falha de persistência.
+    }
+  }, [cashRaw]);
 
   function updateRow(id: number, field: keyof CalcRow, value: string) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
@@ -67,6 +107,8 @@ export default function CalculadorasPage() {
 
   function clearRow(id: number) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...emptyRow(), id } : r)));
+    setQuoteStatus((s) => ({ ...s, [id]: null }));
+    setQuoteError((e) => ({ ...e, [id]: '' }));
   }
 
   function removeRow(id: number) {
@@ -94,6 +136,28 @@ export default function CalculadorasPage() {
     }
   }
 
+  // Busca automática: dispara sozinha ~700ms depois que o usuário para de
+  // digitar o ticker, sem precisar clicar no botão de atualizar.
+  const debounceTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const lastAutoFetchedTicker = useRef<Record<number, string>>({});
+
+  useEffect(() => {
+    for (const row of rows) {
+      const t = row.ticker.trim().toUpperCase();
+      if (debounceTimers.current[row.id]) clearTimeout(debounceTimers.current[row.id]);
+      if (!t) {
+        lastAutoFetchedTicker.current[row.id] = '';
+        continue;
+      }
+      if (lastAutoFetchedTicker.current[row.id] === t) continue;
+      debounceTimers.current[row.id] = setTimeout(() => {
+        lastAutoFetchedTicker.current[row.id] = t;
+        fetchQuote(row.id, t);
+      }, 700);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows.map((r) => r.ticker).join('|')]);
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -103,7 +167,8 @@ export default function CalculadorasPage() {
             Calculadoras
           </h1>
           <p className="text-sm text-muted-foreground">
-            Compare várias PUTs lado a lado. Digite valores com vírgula (ex: ,80 ou 0,80).
+            Compare várias PUTs lado a lado. Digite valores com vírgula (ex: ,80 ou 0,80). A cotação é buscada
+            automaticamente ao digitar o ativo.
           </p>
         </div>
         <Button size="sm" onClick={addRow}>
@@ -167,7 +232,7 @@ export default function CalculadorasPage() {
                       <button
                         onClick={() => fetchQuote(row.id, row.ticker)}
                         disabled={!row.ticker.trim() || quoteStatus[row.id] === 'loading'}
-                        title="Buscar cotação automática"
+                        title="Atualizar cotação agora (também busca automaticamente ao digitar o ativo)"
                         className="shrink-0 text-faint-foreground hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <RefreshCw className={cn('h-3.5 w-3.5', quoteStatus[row.id] === 'loading' && 'animate-spin')} />
