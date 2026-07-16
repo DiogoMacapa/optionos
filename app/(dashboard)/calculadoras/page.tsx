@@ -36,10 +36,18 @@ function calcRow(row: CalcRow, cash: number) {
   const totalPremium = premium * quantity;
   const ir = totalPremium * 0.15;
   const netProfit = totalPremium - ir;
-  const rentability = guarantee > 0 ? (netProfit / guarantee) * 100 : 0;
+
+  // Taxa: igual à fórmula original da planilha do usuário (=Total Prêmio / Caixa) —
+  // mede o retorno sobre o caixa TOTAL disponível, bruto (sem descontar IR).
+  const taxaSobreCaixa = cash > 0 ? (totalPremium / cash) * 100 : 0;
+
+  // Rentabilidade líquida: lucro já líquido de IR, sobre a garantia DESTA operação
+  // específica (não o caixa total) — mede o retorno daquela operação isoladamente.
+  const rentabLiquida = guarantee > 0 ? (netProfit / guarantee) * 100 : 0;
+
   const exceedsCeiling = ceiling !== null && strike > ceiling;
 
-  return { quantity, guarantee, totalPremium, rentability, exceedsCeiling };
+  return { quantity, guarantee, totalPremium, taxaSobreCaixa, rentabLiquida, exceedsCeiling };
 }
 
 export default function CalculadorasPage() {
@@ -118,7 +126,8 @@ export default function CalculadorasPage() {
               <Th width={100}>Qnt Opções</Th>
               <Th width={90}>Prêmio</Th>
               <Th width={110}>Total Prêmio</Th>
-              <Th width={90}>Rentab.</Th>
+              <Th width={80}>Taxa</Th>
+              <Th width={90}>Rentab. líq.</Th>
               <Th width={120}>Garantia</Th>
               <Th width={64}></Th>
             </tr>
@@ -181,7 +190,17 @@ export default function CalculadorasPage() {
                     <span className="font-tabular text-xs text-accent">{formatBRL(r.totalPremium)}</span>
                   </Td>
                   <Td>
-                    <span className="font-tabular text-xs text-foreground">{formatPct(r.rentability, 2)}</span>
+                    <span className="font-tabular text-xs text-foreground" title="Total Prêmio ÷ Caixa (igual à sua planilha)">
+                      {formatPct(r.taxaSobreCaixa, 2)}
+                    </span>
+                  </Td>
+                  <Td>
+                    <span
+                      className="font-tabular text-xs text-foreground"
+                      title="Lucro líquido (após IR) ÷ Garantia desta operação"
+                    >
+                      {formatPct(r.rentabLiquida, 2)}
+                    </span>
                   </Td>
                   <Td>
                     <span className="font-tabular text-xs text-foreground">{formatBRL(r.guarantee)}</span>
@@ -211,10 +230,17 @@ export default function CalculadorasPage() {
         </table>
       </div>
 
-      <p className="text-xs text-faint-foreground">
-        O campo Strike fica vermelho quando ultrapassa o Preço Teto daquele ativo — é só um alerta visual, você ainda
-        pode confirmar a operação normalmente.
-      </p>
+      <div className="space-y-1 text-xs text-faint-foreground">
+        <p>
+          O campo Strike fica vermelho quando ultrapassa o Preço Teto daquele ativo — é só um alerta visual, você
+          ainda pode confirmar a operação normalmente.
+        </p>
+        <p>
+          <strong className="text-muted-foreground">Taxa</strong> = Total Prêmio ÷ Caixa (retorno bruto sobre o caixa
+          total disponível, igual à sua planilha) · <strong className="text-muted-foreground">Rentab. líq.</strong> =
+          Lucro líquido após IR ÷ Garantia desta operação (retorno sobre o capital que ela mesma consome).
+        </p>
+      </div>
     </div>
   );
 }
