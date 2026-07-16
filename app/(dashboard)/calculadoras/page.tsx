@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Calculator, Plus, Trash2, ExternalLink } from 'lucide-react';
+import { Calculator, Plus, Trash2, ExternalLink, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -54,6 +54,8 @@ export default function CalculadorasPage() {
   const [cashRaw, setCashRaw] = useState('150000');
   const cash = parseBRNumber(cashRaw);
   const [rows, setRows] = useState<CalcRow[]>(INITIAL_ROWS);
+  const [quoteStatus, setQuoteStatus] = useState<Record<number, 'loading' | 'error' | null>>({});
+  const [quoteError, setQuoteError] = useState<Record<number, string>>({});
 
   function updateRow(id: number, field: keyof CalcRow, value: string) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
@@ -69,6 +71,27 @@ export default function CalculadorasPage() {
 
   function removeRow(id: number) {
     setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.id !== id) : prev));
+  }
+
+  async function fetchQuote(id: number, ticker: string) {
+    const t = ticker.trim();
+    if (!t) return;
+    setQuoteStatus((s) => ({ ...s, [id]: 'loading' }));
+    setQuoteError((e) => ({ ...e, [id]: '' }));
+    try {
+      const res = await fetch(`/api/quote?ticker=${encodeURIComponent(t)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setQuoteStatus((s) => ({ ...s, [id]: 'error' }));
+        setQuoteError((e) => ({ ...e, [id]: data.error ?? 'Erro ao buscar cotação.' }));
+        return;
+      }
+      updateRow(id, 'quote', String(data.price).replace('.', ','));
+      setQuoteStatus((s) => ({ ...s, [id]: null }));
+    } catch {
+      setQuoteStatus((s) => ({ ...s, [id]: 'error' }));
+      setQuoteError((e) => ({ ...e, [id]: 'Falha de conexão ao buscar cotação.' }));
+    }
   }
 
   return (
@@ -107,7 +130,7 @@ export default function CalculadorasPage() {
           <thead>
             <tr className="text-left">
               <Th width={90}>Ativo</Th>
-              <Th width={110}>Cotação</Th>
+              <Th width={130}>Cotação</Th>
               <Th width={100}>Caixa</Th>
               <Th width={100}>Strike</Th>
               <Th width={100}>Preço Teto</Th>
@@ -134,12 +157,22 @@ export default function CalculadorasPage() {
                     />
                   </Td>
                   <Td>
-                    <Input
-                      value={row.quote}
-                      onChange={(e) => updateRow(row.id, 'quote', e.target.value)}
-                      placeholder="0,00"
-                      className="font-tabular h-8 text-xs"
-                    />
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={row.quote}
+                        onChange={(e) => updateRow(row.id, 'quote', e.target.value)}
+                        placeholder="0,00"
+                        className="font-tabular h-8 text-xs"
+                      />
+                      <button
+                        onClick={() => fetchQuote(row.id, row.ticker)}
+                        disabled={!row.ticker.trim() || quoteStatus[row.id] === 'loading'}
+                        title="Buscar cotação automática"
+                        className="shrink-0 text-faint-foreground hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <RefreshCw className={cn('h-3.5 w-3.5', quoteStatus[row.id] === 'loading' && 'animate-spin')} />
+                      </button>
+                    </div>
                     {row.ticker.trim() && (
                       <a
                         href={`https://www.google.com/finance/quote/${row.ticker.trim()}:BVMF`}
@@ -149,6 +182,9 @@ export default function CalculadorasPage() {
                       >
                         ver {row.ticker.trim()} <ExternalLink className="h-2.5 w-2.5" />
                       </a>
+                    )}
+                    {quoteStatus[row.id] === 'error' && (
+                      <p className="mt-0.5 text-[9px] text-danger">{quoteError[row.id]}</p>
                     )}
                   </Td>
                   <Td>
