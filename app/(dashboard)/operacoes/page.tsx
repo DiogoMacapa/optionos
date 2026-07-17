@@ -22,6 +22,7 @@ export default function OperacoesPage() {
   const [operations, setOperations] = useState<Operation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [holderFilter, setHolderFilter] = useState<string | 'todos'>('todos');
   const [closingOp, setClosingOp] = useState<Operation | null>(null);
   const [closingOpAveragePrice, setClosingOpAveragePrice] = useState<number | null>(null);
 
@@ -57,8 +58,21 @@ export default function OperacoesPage() {
     };
   }, []);
 
-  const putOps = useMemo(() => operations.filter((o) => o.option_type === 'PUT'), [operations]);
-  const callOps = useMemo(() => operations.filter((o) => o.option_type === 'CALL'), [operations]);
+  const filteredByHolder = useMemo(
+    () => (holderFilter === 'todos' ? operations : operations.filter((o) => o.holder_id === holderFilter)),
+    [operations, holderFilter]
+  );
+
+  const holders = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const o of operations) {
+      if (o.holder) map.set(o.holder.id, o.holder.name);
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [operations]);
+
+  const putOps = useMemo(() => filteredByHolder.filter((o) => o.option_type === 'PUT'), [filteredByHolder]);
+  const callOps = useMemo(() => filteredByHolder.filter((o) => o.option_type === 'CALL'), [filteredByHolder]);
 
   const putGrouped = useMemo(() => groupByExpirationMonth(putOps), [putOps]);
   const callGrouped = useMemo(() => groupByExpiration(callOps), [callOps]);
@@ -122,23 +136,48 @@ export default function OperacoesPage() {
         </div>
 
         {mainTab === 'operacoes' && (
-          <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-1">
-            <button
-              onClick={() => setSubTab('PUT')}
-              className={`rounded-md px-4 py-1.5 text-xs font-bold transition-colors ${
-                subTab === 'PUT' ? 'bg-info/15 text-info' : 'text-muted-foreground hover:bg-surface-hover'
-              }`}
-            >
-              PUT
-            </button>
-            <button
-              onClick={() => setSubTab('CALL')}
-              className={`rounded-md px-4 py-1.5 text-xs font-bold transition-colors ${
-                subTab === 'CALL' ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
-              }`}
-            >
-              CALL
-            </button>
+          <div className="flex items-center gap-2">
+            {holders.length > 1 && (
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-0.5">
+                <button
+                  onClick={() => setHolderFilter('todos')}
+                  className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                    holderFilter === 'todos' ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
+                  }`}
+                >
+                  Todos
+                </button>
+                {holders.map((h) => (
+                  <button
+                    key={h.id}
+                    onClick={() => setHolderFilter(h.id)}
+                    className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                      holderFilter === h.id ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
+                    }`}
+                  >
+                    {h.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-1">
+              <button
+                onClick={() => setSubTab('PUT')}
+                className={`rounded-md px-4 py-1.5 text-xs font-bold transition-colors ${
+                  subTab === 'PUT' ? 'bg-info/15 text-info' : 'text-muted-foreground hover:bg-surface-hover'
+                }`}
+              >
+                PUT
+              </button>
+              <button
+                onClick={() => setSubTab('CALL')}
+                className={`rounded-md px-4 py-1.5 text-xs font-bold transition-colors ${
+                  subTab === 'CALL' ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
+                }`}
+              >
+                CALL
+              </button>
+            </div>
           </div>
         )}
       </div>

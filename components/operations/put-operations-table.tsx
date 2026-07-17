@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { WeekRangePicker } from '@/components/operations/week-range-picker';
 import { formatBRL, formatPct, formatNumber, formatDate, parseBRNumber, cn } from '@/lib/utils';
-import { updateOperationFields, updateAssetCeiling } from '@/lib/supabase/queries';
+import { updateOperationFields, updateAssetCeiling, findOrCreateAsset } from '@/lib/supabase/queries';
 import type { Operation } from '@/lib/types/database';
 
 interface PutOperationsTableProps {
@@ -24,8 +24,9 @@ function calcPutRow(op: Operation) {
   const rate = strike > 0 ? premium / strike : 0;
 
   const totalPremium = op.premium_received;
-  const totalBuyback = op.close_price ?? null;
-  const sellMinusBuyback = op.status !== 'aberta' && totalBuyback !== null ? totalPremium - totalBuyback : null;
+  // Total recompra: null = ainda não preenchido (não confundir com 0 = recomprou de graça / expirou).
+  const totalBuyback = op.close_price;
+  const sellMinusBuyback = totalBuyback !== null && totalBuyback !== undefined ? totalPremium - totalBuyback : null;
   const ir = op.ir_amount ?? null;
   const netProfit = op.net_profit ?? null;
   const efficiency = op.efficiency_pct ?? null;
@@ -33,9 +34,46 @@ function calcPutRow(op: Operation) {
   return { strike, premium, ceiling, isExpensive, guarantee, rate, totalPremium, totalBuyback, sellMinusBuyback, ir, netProfit, efficiency };
 }
 
+/** Campo de texto com valor local — evita perder o que foi digitado até o onBlur salvar. */
+function InlineField({
+  initialValue,
+  onCommit,
+  placeholder,
+  danger,
+  width,
+  mono = true,
+}: {
+  initialValue: string;
+  onCommit: (value: string) => void;
+  placeholder?: string;
+  danger?: boolean;
+  width?: number;
+  mono?: boolean;
+}) {
+  const [value, setValue] = useState(initialValue);
+  return (
+    <input
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => {
+        if (value !== initialValue) onCommit(value);
+      }}
+      placeholder={placeholder}
+      style={{ width }}
+      className={cn(
+        'rounded border px-1.5 py-1 text-[11.5px] outline-none',
+        mono && 'font-tabular',
+        danger ? 'border-danger/60 bg-danger-muted text-danger' : 'border-border bg-surface-elevated text-foreground'
+      )}
+    />
+  );
+}
+
 export function PutOperationsTable({ operations, onChanged, onClose }: PutOperationsTableProps) {
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [ceilingDrafts, setCeilingDrafts] = useState<Record<string, string>>({});
+  const [quoteLoadingId, setQuoteLoadingId] = useState<string | null>(null);
+  const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const lastAutoFetchedTicker = useRef<Record<string, string>>({});
 
   async function saveField(op: Operation, patch: Parameters<typeof updateOperationFields>[1]) {
     setSavingId(op.id);
@@ -54,14 +92,50 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
     onChanged();
   }
 
+  async function saveTicker(op: Operation, raw: string) {
+    const ticker = raw.trim().toUpperCase();
+    if (!ticker || ticker === op.asset?.ticker) return;
+    const asset = await findOrCreateAsset(ticker);
+    await saveField(op, { asset_id: asset.id });
+    scheduleAutoQuote(op.id, ticker);
+  }
+
+  async function fetchQuote(id: string, ticker: string) {
+    const t = ticker.trim();
+    if (!t) return;
+    setQuoteLoadingId(id);
+    try {
+      const res = await fetch(`/api/quote?ticker=${encodeURIComponent(t)}`);
+      const data = await res.json();
+      if (res.ok) {
+        const op = operations.find((o) => o.id === id);
+        if (op) await saveField(op, { reference_quote: Number(data.price) });
+      }
+    } finally {
+      setQuoteLoadingId(null);
+    }
+  }
+
+  function scheduleAutoQuote(id: string, ticker: string) {
+    const t = ticker.trim().toUpperCase();
+    if (debounceTimers.current[id]) clearTimeout(debounceTimers.current[id]);
+    if (!t || lastAutoFetchedTicker.current[id] === t) return;
+    debounceTimers.current[id] = setTimeout(() => {
+      lastAutoFetchedTicker.current[id] = t;
+      fetchQuote(id, t);
+    }, 700);
+  }
+
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1300px] border-collapse">
+      <table className="w-full min-w-[1600px] border-collapse">
         <thead>
           <tr>
             <Th>Status</Th>
+            <Th>Data</Th>
             <Th>Semana</Th>
             <Th>Ativo</Th>
+            <Th>Cotação</Th>
             <Th>Prêmio venda</Th>
             <Th>Total prêmio</Th>
             <Th>Strike</Th>
@@ -75,7 +149,7 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
             <Th>Lucro final</Th>
             <Th>Eficiência</Th>
             <Th>Exercido?</Th>
-            <Th></Th>
+            <Th>Ações</Th>
           </tr>
         </thead>
         <tbody>
@@ -87,6 +161,9 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                 <Td>
                   <Badge variant={op.status === 'aberta' ? 'outline' : 'default'}>{op.status}</Badge>
                 </Td>
+                <Td width={82}>
+                  <span className="font-tabular text-[11.5px] text-muted-foreground">{formatDate(op.opened_at)}</span>
+                </Td>
                 <Td width={90}>
                   {editable ? (
                     <WeekRangePicker
@@ -97,35 +174,83 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                     <span className="font-tabular text-[11.5px] text-muted-foreground">{op.week_label ?? '—'}</span>
                   )}
                 </Td>
-                <Td width={80}>
-                  <span className="font-tabular text-xs font-bold text-foreground">{op.asset?.ticker ?? '—'}</span>
+                <Td width={78}>
+                  {editable ? (
+                    <InlineField
+                      key={`ticker-${op.id}-${op.asset?.ticker ?? ''}`}
+                      initialValue={op.asset?.ticker ?? ''}
+                      onCommit={(v) => saveTicker(op, v)}
+                      placeholder="VALE3"
+                      width={68}
+                    />
+                  ) : (
+                    <span className="font-tabular text-xs font-bold text-foreground">{op.asset?.ticker ?? '—'}</span>
+                  )}
+                </Td>
+                <Td width={92}>
+                  {editable ? (
+                    <div className="flex items-center gap-1">
+                      <InlineField
+                        key={`quote-${op.id}-${op.reference_quote}`}
+                        initialValue={op.reference_quote !== null ? String(op.reference_quote).replace('.', ',') : ''}
+                        onCommit={(v) => saveField(op, { reference_quote: v.trim() === '' ? null : parseBRNumber(v) })}
+                        placeholder="0,00"
+                        width={54}
+                      />
+                      <button
+                        onClick={() => fetchQuote(op.id, op.asset?.ticker ?? '')}
+                        disabled={!op.asset?.ticker || quoteLoadingId === op.id}
+                        title="Atualizar cotação"
+                        className="shrink-0 text-faint-foreground hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <RefreshCw className={cn('h-3 w-3', quoteLoadingId === op.id && 'animate-spin')} />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-muted-foreground">{formatNumber(op.reference_quote, 2)}</span>
+                  )}
                 </Td>
                 <Td width={80}>
-                  <span className="font-tabular text-[11.5px] text-muted-foreground">{formatNumber(r.premium, 2)}</span>
+                  {editable ? (
+                    <InlineField
+                      key={`premium-${op.id}-${r.premium}`}
+                      initialValue={formatNumber(r.premium, 2)}
+                      onCommit={(v) => saveField(op, { premium_received: parseBRNumber(v) * op.quantity })}
+                      placeholder="0,00"
+                      width={56}
+                    />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-muted-foreground">{formatNumber(r.premium, 2)}</span>
+                  )}
                 </Td>
                 <Td>
                   <span className="font-tabular text-[11.5px] font-bold text-accent">{formatBRL(r.totalPremium)}</span>
                 </Td>
                 <Td width={80}>
-                  <span
-                    className={cn(
-                      'font-tabular text-[11.5px]',
-                      r.isExpensive ? 'font-bold text-danger' : 'text-muted-foreground'
-                    )}
-                  >
-                    {formatNumber(r.strike, 2)}
-                  </span>
+                  {editable ? (
+                    <InlineField
+                      key={`strike-${op.id}-${r.strike}`}
+                      initialValue={formatNumber(r.strike, 2)}
+                      onCommit={(v) => saveField(op, { strike: parseBRNumber(v) })}
+                      placeholder="0,00"
+                      width={56}
+                      danger={r.isExpensive}
+                    />
+                  ) : (
+                    <span className={cn('font-tabular text-[11.5px]', r.isExpensive ? 'font-bold text-danger' : 'text-muted-foreground')}>
+                      {formatNumber(r.strike, 2)}
+                    </span>
+                  )}
                 </Td>
                 <Td width={130}>
                   <div className="flex items-center gap-1.5">
                     <Badge variant={r.isExpensive ? 'danger' : 'success'}>{r.isExpensive ? 'Cara' : 'Barata'}</Badge>
-                    <input
-                      defaultValue={ceilingDrafts[op.id] ?? (r.ceiling !== null ? String(r.ceiling).replace('.', ',') : '')}
-                      onChange={(e) => setCeilingDrafts((d) => ({ ...d, [op.id]: e.target.value }))}
-                      onBlur={(e) => saveCeiling(op, e.target.value)}
+                    <InlineField
+                      key={`ceiling-${op.id}-${r.ceiling}`}
+                      initialValue={r.ceiling !== null ? String(r.ceiling).replace('.', ',') : ''}
+                      onCommit={(v) => saveCeiling(op, v)}
                       placeholder="teto"
-                      className="w-14 rounded border border-border bg-surface-elevated px-1 py-0.5 font-tabular text-[10px] text-foreground outline-none"
-                      title={`Preço-teto de ${op.asset?.ticker} — se o Strike passar disso, fica "Cara"`}
+                      width={48}
                     />
                   </div>
                 </Td>
@@ -138,8 +263,18 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                 <Td>
                   <span className="font-tabular text-[11.5px] text-muted-foreground">{formatDate(op.expiration)}</span>
                 </Td>
-                <Td>
-                  <span className="font-tabular text-[11.5px] text-foreground">{r.totalBuyback !== null ? formatBRL(r.totalBuyback) : '—'}</span>
+                <Td width={90}>
+                  {editable ? (
+                    <InlineField
+                      key={`buyback-${op.id}-${r.totalBuyback}`}
+                      initialValue={r.totalBuyback !== null && r.totalBuyback !== undefined ? formatNumber(r.totalBuyback, 2) : ''}
+                      onCommit={(v) => saveField(op, { close_price: v.trim() === '' ? null : parseBRNumber(v) })}
+                      placeholder="vazio"
+                      width={64}
+                    />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-foreground">{r.totalBuyback !== null ? formatBRL(r.totalBuyback) : '—'}</span>
+                  )}
                 </Td>
                 <Td>
                   <span className="font-tabular text-[11.5px] text-foreground">{r.sellMinusBuyback !== null ? formatBRL(r.sellMinusBuyback) : '—'}</span>

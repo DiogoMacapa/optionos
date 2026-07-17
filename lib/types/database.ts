@@ -150,6 +150,7 @@ export interface Operation {
   expiration: string;
   quantity: number;
   week_label: string | null;
+  reference_quote: number | null;
 
   premium_received: number;
   delta_at_open: number | null;

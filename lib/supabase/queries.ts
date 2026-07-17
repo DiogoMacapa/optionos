@@ -282,13 +282,24 @@ export async function listOperations(): Promise<Operation[]> {
 /**
  * Edição inline de uma operação ABERTA (linha editável na tabela de
  * Operações): semana/vencimento via calendário, strike, prêmio, caixa
- * de referência etc. Só operações abertas devem ser editadas assim —
- * encerradas/exercidas/roladas são histórico.
+ * de referência, cotação, ativo, recompra etc. Só operações abertas
+ * devem ser editadas assim — encerradas/exercidas/roladas são histórico.
  */
 export async function updateOperationFields(
   id: string,
   patch: Partial<
-    Pick<Operation, 'week_label' | 'expiration' | 'strike' | 'premium_received' | 'quantity' | 'committed_capital'>
+    Pick<
+      Operation,
+      | 'week_label'
+      | 'expiration'
+      | 'strike'
+      | 'premium_received'
+      | 'quantity'
+      | 'committed_capital'
+      | 'reference_quote'
+      | 'close_price'
+      | 'asset_id'
+    >
   >
 ): Promise<Operation> {
   const { data, error } = await supabase.from('operations').update(patch).eq('id', id).select('*').single();
