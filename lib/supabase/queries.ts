@@ -302,6 +302,7 @@ export async function updateOperationFields(
       | 'opened_at'
       | 'buyback_premium'
       | 'option_symbol'
+      | 'exercised_label'
     >
   >
 ): Promise<Operation> {
@@ -343,6 +344,12 @@ export async function closeOperation(input: CloseOperationInput): Promise<Operat
     .single();
   if (error) throw error;
   return data;
+}
+
+/** Exclui a operação por completo — ação irreversível, sem soft-delete. */
+export async function deleteOperation(id: string): Promise<void> {
+  const { error } = await supabase.from('operations').delete().eq('id', id);
+  if (error) throw error;
 }
 
 export interface RollOperationInput {

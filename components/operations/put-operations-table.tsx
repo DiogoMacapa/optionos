@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { WeekRangePicker } from '@/components/operations/week-range-picker';
 import { DatePickerField } from '@/components/operations/date-picker-field';
 import { formatBRL, formatPct, formatNumber, formatDate, parseBRNumber, cn } from '@/lib/utils';
-import { updateOperationFields, updateAssetCeiling, findOrCreateAsset } from '@/lib/supabase/queries';
+import { updateOperationFields, updateAssetCeiling, findOrCreateAsset, deleteOperation } from '@/lib/supabase/queries';
 import { calculateNetProfit } from '@/lib/calculations/finance';
 import type { Operation } from '@/lib/types/database';
 
@@ -171,6 +171,18 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
     const asset = await findOrCreateAsset(ticker);
     await saveField(op, { asset_id: asset.id });
     scheduleAutoQuote(op.id, ticker);
+  }
+
+  async function handleDelete(op: Operation) {
+    const label = op.asset?.ticker ?? 'esta operação';
+    if (!window.confirm(`Excluir ${label} definitivamente? Essa ação não pode ser desfeita.`)) return;
+    setSavingId(op.id);
+    try {
+      await deleteOperation(op.id);
+      onChanged();
+    } finally {
+      setSavingId(null);
+    }
   }
 
   async function fetchQuote(id: string, ticker: string) {
@@ -370,7 +382,7 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                   )}
                 </Td>
 
-                {/* Total Prêmio */}
+                {/* Total Prêmio — calculado */}
                 <Td>
                   <span className="font-tabular text-[11.5px] font-bold text-accent">{formatBRL(r.totalPremium)}</span>
                 </Td>
@@ -393,9 +405,9 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                   )}
                 </Td>
 
-                {/* Distância do strike */}
+                {/* Distância do strike — calculado */}
                 <Td>
-                  <span className={cn('font-tabular text-[11.5px]', r.distance !== null && r.distance >= 0 ? 'text-accent' : 'text-danger')}>
+                  <span className="font-tabular text-[11.5px] text-accent">
                     {r.distance !== null ? formatPct(r.distance * 100, 2) : '—'}
                   </span>
                 </Td>
@@ -414,14 +426,14 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                   </div>
                 </Td>
 
-                {/* Spread */}
+                {/* Spread — calculado */}
                 <Td>
-                  <span className="font-tabular text-[11.5px] text-foreground">{r.spread !== null ? formatNumber(r.spread, 2) : '—'}</span>
+                  <span className="font-tabular text-[11.5px] text-accent">{r.spread !== null ? formatNumber(r.spread, 2) : '—'}</span>
                 </Td>
 
-                {/* Garantia */}
+                {/* Garantia — calculado */}
                 <Td>
-                  <span className="font-tabular text-[11.5px] text-foreground">{formatBRL(r.guarantee)}</span>
+                  <span className="font-tabular text-[11.5px] text-accent">{formatBRL(r.guarantee)}</span>
                 </Td>
 
                 {/* Caixa */}
@@ -448,9 +460,9 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                   )}
                 </Td>
 
-                {/* Taxa (%) */}
+                {/* Taxa (%) — calculado */}
                 <Td>
-                  <span className="font-tabular text-[11.5px] text-foreground">{formatPct(r.rate * 100, 2)}</span>
+                  <span className="font-tabular text-[11.5px] text-accent">{formatPct(r.rate * 100, 2)}</span>
                 </Td>
 
                 {/* Vencimento */}
@@ -475,51 +487,68 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
 
                 {/* Total Recompra — calculado: Valor Recompra × Qnt */}
                 <Td>
-                  <span className="font-tabular text-[11.5px] text-foreground">{r.totalBuyback !== null ? formatBRL(r.totalBuyback) : '—'}</span>
+                  <span className="font-tabular text-[11.5px] text-accent">{r.totalBuyback !== null ? formatBRL(r.totalBuyback) : '—'}</span>
                 </Td>
 
-                {/* Venda-Recompra */}
+                {/* Venda-Recompra — calculado */}
                 <Td>
-                  <span className="font-tabular text-[11.5px] text-foreground">{r.sellMinusBuyback !== null ? formatBRL(r.sellMinusBuyback) : '—'}</span>
+                  <span className="font-tabular text-[11.5px] text-accent">{r.sellMinusBuyback !== null ? formatBRL(r.sellMinusBuyback) : '—'}</span>
                 </Td>
 
-                {/* IR (15%) */}
+                {/* IR (15%) — calculado, exceção: vermelho */}
                 <Td>
                   <span className="font-tabular text-[11.5px] text-danger">{r.ir !== null ? formatBRL(r.ir) : '—'}</span>
                 </Td>
 
-                {/* Lucro Final */}
+                {/* Lucro Final — calculado */}
                 <Td>
                   <span className="font-tabular text-[11.5px] font-bold text-accent">{r.netProfit !== null ? formatBRL(r.netProfit) : '—'}</span>
                 </Td>
 
-                {/* Eficiência (%) */}
+                {/* Eficiência (%) — calculado */}
                 <Td>
-                  <span className="font-tabular text-[11.5px] text-foreground">{r.efficiency !== null ? formatPct(r.efficiency, 1) : '—'}</span>
+                  <span className="font-tabular text-[11.5px] text-accent">{r.efficiency !== null ? formatPct(r.efficiency, 1) : '—'}</span>
                 </Td>
 
-                {/* Exercido? */}
-                <Td>
-                  {op.exercised ? (
-                    <Badge variant="danger">Sim</Badge>
-                  ) : op.status !== 'aberta' ? (
-                    <Badge>Não</Badge>
-                  ) : (
-                    <span className="text-[11px] text-faint-foreground">—</span>
-                  )}
+                {/* Exercido? — editável manualmente: Sim, Não ou Rolagem (alimenta estatísticas/Dashboard) */}
+                <Td width={100}>
+                  <select
+                    value={op.exercised_label ?? ''}
+                    onChange={(e) => saveField(op, { exercised_label: (e.target.value || null) as Operation['exercised_label'] })}
+                    className={cn(
+                      'w-full rounded border px-1.5 py-1 text-[11px] outline-none',
+                      op.exercised_label
+                        ? 'border-border bg-transparent text-foreground'
+                        : 'border-border bg-surface-elevated text-faint-foreground'
+                    )}
+                  >
+                    <option value="">—</option>
+                    <option value="Sim">Sim</option>
+                    <option value="Não">Não</option>
+                    <option value="Rolagem">Rolagem</option>
+                  </select>
                 </Td>
 
                 {/* Ações */}
                 <Td>
-                  {editable && (
+                  <div className="flex items-center gap-1.5">
+                    {editable && (
+                      <button
+                        onClick={() => onClose(op)}
+                        className="whitespace-nowrap rounded-md border border-border bg-surface-elevated px-2 py-1 text-[10.5px] font-medium text-foreground hover:bg-surface-hover"
+                      >
+                        Encerrar
+                      </button>
+                    )}
                     <button
-                      onClick={() => onClose(op)}
-                      className="whitespace-nowrap rounded-md border border-border bg-surface-elevated px-2 py-1 text-[10.5px] font-medium text-foreground hover:bg-surface-hover"
+                      onClick={() => handleDelete(op)}
+                      title="Excluir operação"
+                      className="text-faint-foreground hover:text-danger"
                     >
-                      Encerrar
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
-                  )}
-                  {savingId === op.id && <RefreshCw className="ml-1 inline h-3 w-3 animate-spin text-accent" />}
+                    {savingId === op.id && <RefreshCw className="h-3 w-3 animate-spin text-accent" />}
+                  </div>
                 </Td>
               </tr>
             );
