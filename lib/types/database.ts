@@ -151,6 +151,7 @@ export interface Operation {
   quantity: number;
   week_label: string | null;
   reference_quote: number | null;
+  option_symbol: string | null;
 
   premium_received: number;
   delta_at_open: number | null;

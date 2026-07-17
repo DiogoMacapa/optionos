@@ -301,6 +301,7 @@ export async function updateOperationFields(
       | 'asset_id'
       | 'opened_at'
       | 'buyback_premium'
+      | 'option_symbol'
     >
   >
 ): Promise<Operation> {

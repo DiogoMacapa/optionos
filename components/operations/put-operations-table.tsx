@@ -150,6 +150,7 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
           <tr>
             <Th>Status</Th>
             <Th>Semana</Th>
+            <Th>Ativo</Th>
             <Th>Cotação</Th>
             <Th>Será Exercido?</Th>
             <Th>Ticker</Th>
@@ -199,6 +200,21 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                   )}
                 </Td>
 
+                {/* Ativo */}
+                <Td width={78}>
+                  {editable ? (
+                    <InlineField
+                      key={`ativo-${op.id}-${op.asset?.ticker ?? ''}`}
+                      initialValue={op.asset?.ticker ?? ''}
+                      onCommit={(v) => saveTicker(op, v)}
+                      placeholder="VALE3"
+                      width={68}
+                    />
+                  ) : (
+                    <span className="font-tabular text-xs font-bold text-foreground">{op.asset?.ticker ?? '—'}</span>
+                  )}
+                </Td>
+
                 {/* Cotação */}
                 <Td width={92}>
                   {editable ? (
@@ -233,18 +249,18 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                   )}
                 </Td>
 
-                {/* Ticker */}
-                <Td width={78}>
+                {/* Ticker — código da série de opção (ex: VALEW76), digitado manualmente */}
+                <Td width={90}>
                   {editable ? (
                     <InlineField
-                      key={`ticker-${op.id}-${op.asset?.ticker ?? ''}`}
-                      initialValue={op.asset?.ticker ?? ''}
-                      onCommit={(v) => saveTicker(op, v)}
-                      placeholder="VALE3"
-                      width={68}
+                      key={`symbol-${op.id}-${op.option_symbol ?? ''}`}
+                      initialValue={op.option_symbol ?? ''}
+                      onCommit={(v) => saveField(op, { option_symbol: v.trim() === '' ? null : v.trim().toUpperCase() })}
+                      placeholder="VALEW76"
+                      width={78}
                     />
                   ) : (
-                    <span className="font-tabular text-xs font-bold text-foreground">{op.asset?.ticker ?? '—'}</span>
+                    <span className="font-tabular text-[11.5px] text-foreground">{op.option_symbol ?? '—'}</span>
                   )}
                 </Td>
 
