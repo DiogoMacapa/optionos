@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { WeekRangePicker } from '@/components/operations/week-range-picker';
@@ -24,25 +24,30 @@ interface PutOperationsTableProps {
  * Valor Recompra | Total Recompra | Venda-Recompra | IR (15%) |
  * Lucro Final | Eficiência (%) | Exercido?
  */
+/** Arredonda para 2 casas decimais — evita erro de ponto flutuante acumulado em valores monetários. */
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
 function calcPutRow(op: Operation) {
   const quote = op.reference_quote;
   const strike = op.strike;
-  const premium = op.premium_received / (op.quantity || 1); // Prêmio Venda (por ação)
+  const premium = op.quantity > 0 ? round2(op.premium_received / op.quantity) : 0; // Prêmio Venda (por ação)
   const ceiling = op.asset?.ceiling_price ?? null;
   const isExpensive = ceiling !== null && strike > ceiling;
 
   const distance = quote !== null && quote !== undefined && quote !== 0 ? (quote - strike) / quote : null;
-  const spread = quote !== null && quote !== undefined ? quote - strike : null;
-  const guarantee = strike * op.quantity;
+  const spread = quote !== null && quote !== undefined ? round2(quote - strike) : null;
+  const guarantee = round2(strike * op.quantity);
   const cash = op.committed_capital; // usamos Capital Comprometido como "Caixa" de referência da operação
   const hasCoverage = cash !== null && cash !== undefined ? cash >= guarantee : null;
   const rate = strike > 0 ? premium / strike : 0;
 
-  const totalPremium = op.premium_received;
+  const totalPremium = round2(op.premium_received);
   const buybackPerShare = op.buyback_premium; // Valor Recompra (por ação) — único campo editável
   const totalBuyback =
-    buybackPerShare !== null && buybackPerShare !== undefined ? buybackPerShare * op.quantity : null; // Total Recompra = Valor Recompra × Qnt
-  const sellMinusBuyback = totalBuyback !== null ? totalPremium - totalBuyback : null;
+    buybackPerShare !== null && buybackPerShare !== undefined ? round2(buybackPerShare * op.quantity) : null; // Total Recompra = Valor Recompra × Qnt
+  const sellMinusBuyback = totalBuyback !== null ? round2(totalPremium - totalBuyback) : null;
 
   // Para operações ABERTAS: calcula IR/Lucro Final/Eficiência ao vivo, a partir
   // do que já foi digitado na linha — não espera o encerramento formal.
@@ -54,9 +59,9 @@ function calcPutRow(op: Operation) {
   if (op.status === 'aberta') {
     if (totalBuyback !== null) {
       const live = calculateNetProfit({ optionType: 'PUT', premiumReceived: totalPremium, buybackCost: totalBuyback });
-      ir = live.ir;
-      netProfit = live.netProfit;
-      efficiency = live.efficiencyPct;
+      ir = round2(live.ir);
+      netProfit = round2(live.netProfit);
+      efficiency = round2(live.efficiencyPct);
     } else {
       ir = null;
       netProfit = null;
@@ -114,6 +119,15 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
   const [quoteLoadingId, setQuoteLoadingId] = useState<string | null>(null);
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const lastAutoFetchedTicker = useRef<Record<string, string>>({});
+  const operationsRef = useRef(operations);
+  useEffect(() => {
+    operationsRef.current = operations;
+  }, [operations]);
+
+  /** Sempre pega a versão mais recente da operação (evita closure desatualizado entre edições rápidas). */
+  function currentOp(id: string): Operation | undefined {
+    return operationsRef.current.find((o) => o.id === id);
+  }
 
   async function saveField(op: Operation, patch: Parameters<typeof updateOperationFields>[1]) {
     setSavingId(op.id);
@@ -317,7 +331,10 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                     <InlineField
                       key={`premium-${op.id}-${r.premium}`}
                       initialValue={formatNumber(r.premium, 2)}
-                      onCommit={(v) => saveField(op, { premium_received: parseBRNumber(v) * op.quantity })}
+                      onCommit={(v) => {
+                        const latest = currentOp(op.id) ?? op;
+                        saveField(latest, { premium_received: parseBRNumber(v) * latest.quantity });
+                      }}
                       placeholder="0,00"
                       width={56}
                     />
