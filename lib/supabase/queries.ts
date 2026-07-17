@@ -299,6 +299,8 @@ export async function updateOperationFields(
       | 'reference_quote'
       | 'close_price'
       | 'asset_id'
+      | 'opened_at'
+      | 'buyback_premium'
     >
   >
 ): Promise<Operation> {

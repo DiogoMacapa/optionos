@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { WeekRangePicker } from '@/components/operations/week-range-picker';
+import { DatePickerField } from '@/components/operations/date-picker-field';
 import { formatBRL, formatPct, formatNumber, formatDate, parseBRNumber, cn } from '@/lib/utils';
 import { updateOperationFields, updateAssetCeiling, findOrCreateAsset } from '@/lib/supabase/queries';
 import type { Operation } from '@/lib/types/database';
@@ -14,24 +15,40 @@ interface PutOperationsTableProps {
   onClose: (op: Operation) => void;
 }
 
+/**
+ * Colunas na ordem EXATA da planilha original do usuário:
+ * Status | Semana | Cotação | Será Exercido? | Ticker | Data | Qnt |
+ * Prêmio Venda | Total Prêmio | Strike | Distância do strike | Teto |
+ * Spread | Garantia | Caixa | Tem Cobertura? | Taxa (%) | Vencimento |
+ * Valor Recompra | Total Recompra | Venda-Recompra | IR (15%) |
+ * Lucro Final | Eficiência (%) | Exercido?
+ */
 function calcPutRow(op: Operation) {
+  const quote = op.reference_quote;
   const strike = op.strike;
-  const premium = op.premium_received / (op.quantity || 1); // prêmio por ação
+  const premium = op.premium_received / (op.quantity || 1); // Prêmio Venda (por ação)
   const ceiling = op.asset?.ceiling_price ?? null;
   const isExpensive = ceiling !== null && strike > ceiling;
 
+  const distance = quote !== null && quote !== undefined && quote !== 0 ? (quote - strike) / quote : null;
+  const spread = quote !== null && quote !== undefined ? quote - strike : null;
   const guarantee = strike * op.quantity;
+  const cash = op.committed_capital; // usamos Capital Comprometido como "Caixa" de referência da operação
+  const hasCoverage = cash !== null && cash !== undefined ? cash >= guarantee : null;
   const rate = strike > 0 ? premium / strike : 0;
 
   const totalPremium = op.premium_received;
-  // Total recompra: null = ainda não preenchido (não confundir com 0 = recomprou de graça / expirou).
-  const totalBuyback = op.close_price;
+  const buybackPerShare = op.buyback_premium; // Valor Recompra (por ação)
+  const totalBuyback = op.close_price; // Total Recompra
   const sellMinusBuyback = totalBuyback !== null && totalBuyback !== undefined ? totalPremium - totalBuyback : null;
   const ir = op.ir_amount ?? null;
   const netProfit = op.net_profit ?? null;
   const efficiency = op.efficiency_pct ?? null;
 
-  return { strike, premium, ceiling, isExpensive, guarantee, rate, totalPremium, totalBuyback, sellMinusBuyback, ir, netProfit, efficiency };
+  return {
+    quote, strike, premium, ceiling, isExpensive, distance, spread, guarantee, cash, hasCoverage, rate,
+    totalPremium, buybackPerShare, totalBuyback, sellMinusBuyback, ir, netProfit, efficiency,
+  };
 }
 
 /** Campo de texto com valor local — evita perder o que foi digitado até o onBlur salvar. */
@@ -128,26 +145,33 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1600px] border-collapse">
+      <table className="w-full min-w-[2200px] border-collapse">
         <thead>
           <tr>
             <Th>Status</Th>
-            <Th>Data</Th>
             <Th>Semana</Th>
-            <Th>Ativo</Th>
             <Th>Cotação</Th>
-            <Th>Prêmio venda</Th>
-            <Th>Total prêmio</Th>
+            <Th>Será Exercido?</Th>
+            <Th>Ticker</Th>
+            <Th>Data</Th>
+            <Th>Qnt</Th>
+            <Th>Prêmio Venda</Th>
+            <Th>Total Prêmio</Th>
             <Th>Strike</Th>
+            <Th>Distância do strike</Th>
             <Th>Teto</Th>
+            <Th>Spread</Th>
             <Th>Garantia</Th>
-            <Th>Taxa</Th>
+            <Th>Caixa</Th>
+            <Th>Tem Cobertura?</Th>
+            <Th>Taxa (%)</Th>
             <Th>Vencimento</Th>
-            <Th>Total recompra</Th>
-            <Th>Venda−Recompra</Th>
+            <Th>Valor Recompra</Th>
+            <Th>Total Recompra</Th>
+            <Th>Venda-Recompra</Th>
             <Th>IR (15%)</Th>
-            <Th>Lucro final</Th>
-            <Th>Eficiência</Th>
+            <Th>Lucro Final</Th>
+            <Th>Eficiência (%)</Th>
             <Th>Exercido?</Th>
             <Th>Ações</Th>
           </tr>
@@ -158,12 +182,12 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
             const editable = op.status === 'aberta';
             return (
               <tr key={op.id} className="border-t border-border">
+                {/* Status */}
                 <Td>
                   <Badge variant={op.status === 'aberta' ? 'outline' : 'default'}>{op.status}</Badge>
                 </Td>
-                <Td width={82}>
-                  <span className="font-tabular text-[11.5px] text-muted-foreground">{formatDate(op.opened_at)}</span>
-                </Td>
+
+                {/* Semana */}
                 <Td width={90}>
                   {editable ? (
                     <WeekRangePicker
@@ -174,19 +198,8 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                     <span className="font-tabular text-[11.5px] text-muted-foreground">{op.week_label ?? '—'}</span>
                   )}
                 </Td>
-                <Td width={78}>
-                  {editable ? (
-                    <InlineField
-                      key={`ticker-${op.id}-${op.asset?.ticker ?? ''}`}
-                      initialValue={op.asset?.ticker ?? ''}
-                      onCommit={(v) => saveTicker(op, v)}
-                      placeholder="VALE3"
-                      width={68}
-                    />
-                  ) : (
-                    <span className="font-tabular text-xs font-bold text-foreground">{op.asset?.ticker ?? '—'}</span>
-                  )}
-                </Td>
+
+                {/* Cotação */}
                 <Td width={92}>
                   {editable ? (
                     <div className="flex items-center gap-1">
@@ -210,6 +223,56 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                     <span className="font-tabular text-[11.5px] text-muted-foreground">{formatNumber(op.reference_quote, 2)}</span>
                   )}
                 </Td>
+
+                {/* Será Exercido? — projeção baseada em strike vs cotação atual (informativo, não editável) */}
+                <Td>
+                  {r.quote !== null && r.quote !== undefined ? (
+                    <Badge variant={r.quote < r.strike ? 'danger' : 'success'}>{r.quote < r.strike ? 'Provável' : 'Improvável'}</Badge>
+                  ) : (
+                    <span className="text-[11px] text-faint-foreground">—</span>
+                  )}
+                </Td>
+
+                {/* Ticker */}
+                <Td width={78}>
+                  {editable ? (
+                    <InlineField
+                      key={`ticker-${op.id}-${op.asset?.ticker ?? ''}`}
+                      initialValue={op.asset?.ticker ?? ''}
+                      onCommit={(v) => saveTicker(op, v)}
+                      placeholder="VALE3"
+                      width={68}
+                    />
+                  ) : (
+                    <span className="font-tabular text-xs font-bold text-foreground">{op.asset?.ticker ?? '—'}</span>
+                  )}
+                </Td>
+
+                {/* Data */}
+                <Td width={100}>
+                  {editable ? (
+                    <DatePickerField value={op.opened_at?.slice(0, 10) ?? null} onSelect={(date) => saveField(op, { opened_at: date })} />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-muted-foreground">{formatDate(op.opened_at)}</span>
+                  )}
+                </Td>
+
+                {/* Qnt */}
+                <Td width={70}>
+                  {editable ? (
+                    <InlineField
+                      key={`qty-${op.id}-${op.quantity}`}
+                      initialValue={String(op.quantity)}
+                      onCommit={(v) => saveField(op, { quantity: Math.round(parseBRNumber(v)) })}
+                      placeholder="0"
+                      width={56}
+                    />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-muted-foreground">{op.quantity.toLocaleString('pt-BR')}</span>
+                  )}
+                </Td>
+
+                {/* Prêmio Venda */}
                 <Td width={80}>
                   {editable ? (
                     <InlineField
@@ -223,9 +286,13 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                     <span className="font-tabular text-[11.5px] text-muted-foreground">{formatNumber(r.premium, 2)}</span>
                   )}
                 </Td>
+
+                {/* Total Prêmio */}
                 <Td>
                   <span className="font-tabular text-[11.5px] font-bold text-accent">{formatBRL(r.totalPremium)}</span>
                 </Td>
+
+                {/* Strike */}
                 <Td width={80}>
                   {editable ? (
                     <InlineField
@@ -242,6 +309,15 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                     </span>
                   )}
                 </Td>
+
+                {/* Distância do strike */}
+                <Td>
+                  <span className={cn('font-tabular text-[11.5px]', r.distance !== null && r.distance >= 0 ? 'text-accent' : 'text-danger')}>
+                    {r.distance !== null ? formatPct(r.distance * 100, 2) : '—'}
+                  </span>
+                </Td>
+
+                {/* Teto */}
                 <Td width={130}>
                   <div className="flex items-center gap-1.5">
                     <Badge variant={r.isExpensive ? 'danger' : 'success'}>{r.isExpensive ? 'Cara' : 'Barata'}</Badge>
@@ -254,15 +330,67 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                     />
                   </div>
                 </Td>
+
+                {/* Spread */}
+                <Td>
+                  <span className="font-tabular text-[11.5px] text-foreground">{r.spread !== null ? formatNumber(r.spread, 2) : '—'}</span>
+                </Td>
+
+                {/* Garantia */}
                 <Td>
                   <span className="font-tabular text-[11.5px] text-foreground">{formatBRL(r.guarantee)}</span>
                 </Td>
+
+                {/* Caixa */}
+                <Td width={100}>
+                  {editable ? (
+                    <InlineField
+                      key={`cash-${op.id}-${r.cash}`}
+                      initialValue={r.cash !== null && r.cash !== undefined ? formatNumber(r.cash, 2) : ''}
+                      onCommit={(v) => saveField(op, { committed_capital: v.trim() === '' ? null : parseBRNumber(v) })}
+                      placeholder="0,00"
+                      width={80}
+                    />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-muted-foreground">{r.cash !== null ? formatBRL(r.cash) : '—'}</span>
+                  )}
+                </Td>
+
+                {/* Tem Cobertura? */}
+                <Td>
+                  {r.hasCoverage !== null ? (
+                    <Badge variant={r.hasCoverage ? 'success' : 'danger'}>{r.hasCoverage ? 'Tem' : 'Não'}</Badge>
+                  ) : (
+                    <span className="text-[11px] text-faint-foreground">—</span>
+                  )}
+                </Td>
+
+                {/* Taxa (%) */}
                 <Td>
                   <span className="font-tabular text-[11.5px] text-foreground">{formatPct(r.rate * 100, 2)}</span>
                 </Td>
+
+                {/* Vencimento */}
                 <Td>
                   <span className="font-tabular text-[11.5px] text-muted-foreground">{formatDate(op.expiration)}</span>
                 </Td>
+
+                {/* Valor Recompra (por ação) */}
+                <Td width={90}>
+                  {editable ? (
+                    <InlineField
+                      key={`buybackshare-${op.id}-${r.buybackPerShare}`}
+                      initialValue={r.buybackPerShare !== null && r.buybackPerShare !== undefined ? formatNumber(r.buybackPerShare, 2) : ''}
+                      onCommit={(v) => saveField(op, { buyback_premium: v.trim() === '' ? null : parseBRNumber(v) })}
+                      placeholder="vazio"
+                      width={64}
+                    />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-foreground">{r.buybackPerShare !== null && r.buybackPerShare !== undefined ? formatNumber(r.buybackPerShare, 2) : '—'}</span>
+                  )}
+                </Td>
+
+                {/* Total Recompra */}
                 <Td width={90}>
                   {editable ? (
                     <InlineField
@@ -276,18 +404,28 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                     <span className="font-tabular text-[11.5px] text-foreground">{r.totalBuyback !== null ? formatBRL(r.totalBuyback) : '—'}</span>
                   )}
                 </Td>
+
+                {/* Venda-Recompra */}
                 <Td>
                   <span className="font-tabular text-[11.5px] text-foreground">{r.sellMinusBuyback !== null ? formatBRL(r.sellMinusBuyback) : '—'}</span>
                 </Td>
+
+                {/* IR (15%) */}
                 <Td>
                   <span className="font-tabular text-[11.5px] text-danger">{r.ir !== null ? formatBRL(r.ir) : '—'}</span>
                 </Td>
+
+                {/* Lucro Final */}
                 <Td>
                   <span className="font-tabular text-[11.5px] font-bold text-accent">{r.netProfit !== null ? formatBRL(r.netProfit) : '—'}</span>
                 </Td>
+
+                {/* Eficiência (%) */}
                 <Td>
                   <span className="font-tabular text-[11.5px] text-foreground">{r.efficiency !== null ? formatPct(r.efficiency, 1) : '—'}</span>
                 </Td>
+
+                {/* Exercido? */}
                 <Td>
                   {op.exercised ? (
                     <Badge variant="danger">Sim</Badge>
@@ -297,6 +435,8 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                     <span className="text-[11px] text-faint-foreground">—</span>
                   )}
                 </Td>
+
+                {/* Ações */}
                 <Td>
                   {editable && (
                     <button
