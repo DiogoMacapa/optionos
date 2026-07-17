@@ -29,10 +29,29 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
+/** Arredonda para 4 casas decimais (mesma escala usada no banco para valores por ação). */
+function round4(n: number): number {
+  return Math.round((n + Number.EPSILON) * 10000) / 10000;
+}
+
+/** Formata com o mínimo de casas decimais necessário para representar o valor exato (2 a 4). */
+function formatPreciseNumber(n: number): string {
+  for (let decimals = 2; decimals <= 4; decimals++) {
+    const rounded = Math.round((n + Number.EPSILON) * 10 ** decimals) / 10 ** decimals;
+    if (Math.abs(rounded - n) < 1e-9) {
+      return rounded.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+  }
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+}
+
 function calcPutRow(op: Operation) {
   const quote = op.reference_quote;
   const strike = op.strike;
-  const premium = op.quantity > 0 ? round2(op.premium_received / op.quantity) : 0; // Prêmio Venda (por ação)
+  // 4 casas de precisão (mesma escala do numeric(14,4) no banco) — evita que o
+  // arredondamento de exibição "coma" dígitos que depois seriam reenviados ao
+  // salvar, criando uma perda progressiva a cada edição (ex: 0,30 virando 0,295).
+  const premium = op.quantity > 0 ? round4(op.premium_received / op.quantity) : 0; // Prêmio Venda (por ação)
   const ceiling = op.asset?.ceiling_price ?? null;
   const isExpensive = ceiling !== null && strike > ceiling;
 
@@ -316,7 +335,15 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                     <InlineField
                       key={`qty-${op.id}-${op.quantity}`}
                       initialValue={String(op.quantity)}
-                      onCommit={(v) => saveField(op, { quantity: Math.round(parseBRNumber(v)) })}
+                      onCommit={(v) => {
+                        const latest = currentOp(op.id) ?? op;
+                        const newQty = Math.round(parseBRNumber(v));
+                        // Mantém o Prêmio Venda (por ação) constante — recalcula o total
+                        // para a nova quantidade, em vez de deixar o total "preso" ao
+                        // valor antigo (o que fazia o Prêmio Venda exibido mudar sozinho).
+                        const perShare = latest.quantity > 0 ? latest.premium_received / latest.quantity : 0;
+                        saveField(latest, { quantity: newQty, premium_received: round4(perShare * newQty) });
+                      }}
                       placeholder="0"
                       width={56}
                     />
@@ -330,7 +357,7 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                   {editable ? (
                     <InlineField
                       key={`premium-${op.id}-${r.premium}`}
-                      initialValue={formatNumber(r.premium, 2)}
+                      initialValue={formatPreciseNumber(r.premium)}
                       onCommit={(v) => {
                         const latest = currentOp(op.id) ?? op;
                         saveField(latest, { premium_received: parseBRNumber(v) * latest.quantity });
