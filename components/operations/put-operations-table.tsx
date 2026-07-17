@@ -7,6 +7,7 @@ import { WeekRangePicker } from '@/components/operations/week-range-picker';
 import { DatePickerField } from '@/components/operations/date-picker-field';
 import { formatBRL, formatPct, formatNumber, formatDate, parseBRNumber, cn } from '@/lib/utils';
 import { updateOperationFields, updateAssetCeiling, findOrCreateAsset } from '@/lib/supabase/queries';
+import { calculateNetProfit } from '@/lib/calculations/finance';
 import type { Operation } from '@/lib/types/database';
 
 interface PutOperationsTableProps {
@@ -38,12 +39,34 @@ function calcPutRow(op: Operation) {
   const rate = strike > 0 ? premium / strike : 0;
 
   const totalPremium = op.premium_received;
-  const buybackPerShare = op.buyback_premium; // Valor Recompra (por ação)
-  const totalBuyback = op.close_price; // Total Recompra
-  const sellMinusBuyback = totalBuyback !== null && totalBuyback !== undefined ? totalPremium - totalBuyback : null;
-  const ir = op.ir_amount ?? null;
-  const netProfit = op.net_profit ?? null;
-  const efficiency = op.efficiency_pct ?? null;
+  const buybackPerShare = op.buyback_premium; // Valor Recompra (por ação) — único campo editável
+  const totalBuyback =
+    buybackPerShare !== null && buybackPerShare !== undefined ? buybackPerShare * op.quantity : null; // Total Recompra = Valor Recompra × Qnt
+  const sellMinusBuyback = totalBuyback !== null ? totalPremium - totalBuyback : null;
+
+  // Para operações ABERTAS: calcula IR/Lucro Final/Eficiência ao vivo, a partir
+  // do que já foi digitado na linha — não espera o encerramento formal.
+  // Para encerradas/exercidas/roladas: usa o resultado já persistido (histórico).
+  let ir: number | null;
+  let netProfit: number | null;
+  let efficiency: number | null;
+
+  if (op.status === 'aberta') {
+    if (totalBuyback !== null) {
+      const live = calculateNetProfit({ optionType: 'PUT', premiumReceived: totalPremium, buybackCost: totalBuyback });
+      ir = live.ir;
+      netProfit = live.netProfit;
+      efficiency = live.efficiencyPct;
+    } else {
+      ir = null;
+      netProfit = null;
+      efficiency = null;
+    }
+  } else {
+    ir = op.ir_amount ?? null;
+    netProfit = op.net_profit ?? null;
+    efficiency = op.efficiency_pct ?? null;
+  }
 
   return {
     quote, strike, premium, ceiling, isExpensive, distance, spread, guarantee, cash, hasCoverage, rate,
@@ -406,19 +429,9 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                   )}
                 </Td>
 
-                {/* Total Recompra */}
-                <Td width={90}>
-                  {editable ? (
-                    <InlineField
-                      key={`buyback-${op.id}-${r.totalBuyback}`}
-                      initialValue={r.totalBuyback !== null && r.totalBuyback !== undefined ? formatNumber(r.totalBuyback, 2) : ''}
-                      onCommit={(v) => saveField(op, { close_price: v.trim() === '' ? null : parseBRNumber(v) })}
-                      placeholder="vazio"
-                      width={64}
-                    />
-                  ) : (
-                    <span className="font-tabular text-[11.5px] text-foreground">{r.totalBuyback !== null ? formatBRL(r.totalBuyback) : '—'}</span>
-                  )}
+                {/* Total Recompra — calculado: Valor Recompra × Qnt */}
+                <Td>
+                  <span className="font-tabular text-[11.5px] text-foreground">{r.totalBuyback !== null ? formatBRL(r.totalBuyback) : '—'}</span>
                 </Td>
 
                 {/* Venda-Recompra */}
