@@ -14,6 +14,7 @@ export interface Asset {
   name: string | null;
   sector: string | null;
   active: boolean;
+  ceiling_price: number | null;
   created_at: string;
 }
 
@@ -148,6 +149,7 @@ export interface Operation {
   strike: number;
   expiration: string;
   quantity: number;
+  week_label: string | null;
 
   premium_received: number;
   delta_at_open: number | null;

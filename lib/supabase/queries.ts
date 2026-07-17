@@ -37,6 +37,18 @@ export async function findOrCreateAsset(ticker: string): Promise<Asset> {
   return data;
 }
 
+/** Preço-teto do ativo: se o Strike de uma PUT ultrapassar isso, é "Cara". */
+export async function updateAssetCeiling(assetId: string, ceilingPrice: number | null): Promise<Asset> {
+  const { data, error } = await supabase
+    .from('assets')
+    .update({ ceiling_price: ceilingPrice })
+    .eq('id', assetId)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 // ---------------------------------------------------------------
 // Market snapshots (gráfico)
 // ---------------------------------------------------------------
@@ -230,6 +242,7 @@ export interface NewOperationInput {
   deltaAtOpen: number | null;
   committedCapital: number | null;
   stockPositionId?: string | null;
+  weekLabel?: string | null;
   notes?: string | null;
 }
 
@@ -248,6 +261,7 @@ export async function createOperation(input: NewOperationInput): Promise<Operati
       delta_at_open: input.deltaAtOpen,
       committed_capital: input.committedCapital,
       stock_position_id: input.stockPositionId ?? null,
+      week_label: input.weekLabel ?? null,
       status: 'aberta',
     })
     .select('*')
@@ -263,6 +277,23 @@ export async function listOperations(): Promise<Operation[]> {
     .order('opened_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as unknown as Operation[];
+}
+
+/**
+ * Edição inline de uma operação ABERTA (linha editável na tabela de
+ * Operações): semana/vencimento via calendário, strike, prêmio, caixa
+ * de referência etc. Só operações abertas devem ser editadas assim —
+ * encerradas/exercidas/roladas são histórico.
+ */
+export async function updateOperationFields(
+  id: string,
+  patch: Partial<
+    Pick<Operation, 'week_label' | 'expiration' | 'strike' | 'premium_received' | 'quantity' | 'committed_capital'>
+  >
+): Promise<Operation> {
+  const { data, error } = await supabase.from('operations').update(patch).eq('id', id).select('*').single();
+  if (error) throw error;
+  return data;
 }
 
 export interface CloseOperationInput {
