@@ -7,27 +7,22 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn, formatBRL, formatPct, parseBRNumber } from '@/lib/utils';
+import {
+  listCalculatorRows,
+  createCalculatorRow,
+  updateCalculatorRow,
+  deleteCalculatorRow,
+  getCalculatorSettings,
+  updateCalculatorSettings,
+} from '@/lib/supabase/queries';
+import type { CalculatorRow } from '@/lib/types/database';
 
 const ROUND_LOT = 100;
-const STORAGE_KEY_ROWS = 'optionos:calculadoras:rows';
-const STORAGE_KEY_CASH = 'optionos:calculadoras:cash';
+const SAVE_DEBOUNCE_MS = 500;
 
-interface CalcRow {
-  id: number;
-  ticker: string;
-  quote: string;
-  strike: string;
-  ceiling: string;
-  premium: string;
-}
+type RowField = 'ticker' | 'quote' | 'strike' | 'ceiling' | 'premium';
 
-function emptyRow(): CalcRow {
-  return { id: Date.now() + Math.random(), ticker: '', quote: '', strike: '', ceiling: '', premium: '' };
-}
-
-const INITIAL_ROWS: CalcRow[] = [emptyRow(), emptyRow(), emptyRow()];
-
-function calcRow(row: CalcRow, cash: number) {
+function calcRow(row: CalculatorRow, cash: number) {
   const strike = parseBRNumber(row.strike);
   const premium = parseBRNumber(row.premium);
   const ceiling = row.ceiling.trim() === '' ? null : parseBRNumber(row.ceiling);
@@ -52,70 +47,90 @@ function calcRow(row: CalcRow, cash: number) {
   return { quantity, guarantee, totalPremium, taxaSobreCaixa, rentabLiquida, exceedsCeiling };
 }
 
-function loadInitialRows(): CalcRow[] {
-  if (typeof window === 'undefined') return INITIAL_ROWS;
-  try {
-    const saved = window.localStorage.getItem(STORAGE_KEY_ROWS);
-    if (!saved) return INITIAL_ROWS;
-    const parsed = JSON.parse(saved) as CalcRow[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_ROWS;
-  } catch {
-    return INITIAL_ROWS;
-  }
-}
-
-function loadInitialCash(): string {
-  if (typeof window === 'undefined') return '150000';
-  try {
-    return window.localStorage.getItem(STORAGE_KEY_CASH) ?? '150000';
-  } catch {
-    return '150000';
-  }
-}
-
 export default function CalculadorasPage() {
-  const [cashRaw, setCashRaw] = useState(loadInitialCash);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [settingsId, setSettingsId] = useState<string | null>(null);
+  const [cashRaw, setCashRaw] = useState('150000');
   const cash = parseBRNumber(cashRaw);
-  const [rows, setRows] = useState<CalcRow[]>(loadInitialRows);
-  const [quoteStatus, setQuoteStatus] = useState<Record<number, 'loading' | 'error' | null>>({});
-  const [quoteError, setQuoteError] = useState<Record<number, string>>({});
-
-  // Persiste a cada mudança de linhas/caixa.
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY_ROWS, JSON.stringify(rows));
-    } catch {
-      // Ignora falha de persistência (ex: modo privado sem quota).
-    }
-  }, [rows]);
+  const [rows, setRows] = useState<CalculatorRow[]>([]);
+  const [quoteStatus, setQuoteStatus] = useState<Record<string, 'loading' | 'error' | null>>({});
+  const [quoteError, setQuoteError] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY_CASH, cashRaw);
-    } catch {
-      // Ignora falha de persistência.
-    }
-  }, [cashRaw]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [rowsData, settings] = await Promise.all([listCalculatorRows(), getCalculatorSettings()]);
+        let finalRows = rowsData;
+        // Garante ao menos 3 linhas na primeira visita.
+        if (finalRows.length === 0) {
+          finalRows = await Promise.all([createCalculatorRow(0), createCalculatorRow(1), createCalculatorRow(2)]);
+        }
+        if (cancelled) return;
+        setRows(finalRows);
+        setSettingsId(settings.id);
+        setCashRaw(settings.cash);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Erro ao carregar a calculadora.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  function updateRow(id: number, field: keyof CalcRow, value: string) {
+  // Debounce de gravação por campo — evita uma chamada de rede a cada tecla.
+  const rowSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const cashSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function updateRow(id: string, field: RowField, value: string) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+    if (rowSaveTimers.current[id]) clearTimeout(rowSaveTimers.current[id]);
+    rowSaveTimers.current[id] = setTimeout(() => {
+      updateCalculatorRow(id, { [field]: value }).catch(() => {
+        // Falha de rede pontual — o valor continua visível na tela; próxima
+        // edição tenta salvar de novo.
+      });
+    }, SAVE_DEBOUNCE_MS);
   }
 
-  function addRow() {
-    setRows((prev) => [...prev, emptyRow()]);
+  function updateCash(value: string) {
+    setCashRaw(value);
+    if (!settingsId) return;
+    if (cashSaveTimer.current) clearTimeout(cashSaveTimer.current);
+    cashSaveTimer.current = setTimeout(() => {
+      updateCalculatorSettings(settingsId, value).catch(() => {});
+    }, SAVE_DEBOUNCE_MS);
   }
 
-  function clearRow(id: number) {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...emptyRow(), id } : r)));
+  async function addRow() {
+    const nextPosition = rows.length > 0 ? Math.max(...rows.map((r) => r.position)) + 1 : 0;
+    const newRow = await createCalculatorRow(nextPosition);
+    setRows((prev) => [...prev, newRow]);
+  }
+
+  async function clearRow(id: string) {
+    const empty = { ticker: '', quote: '', strike: '', ceiling: '', premium: '' };
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...empty } : r)));
     setQuoteStatus((s) => ({ ...s, [id]: null }));
     setQuoteError((e) => ({ ...e, [id]: '' }));
+    if (rowSaveTimers.current[id]) clearTimeout(rowSaveTimers.current[id]);
+    await updateCalculatorRow(id, empty);
   }
 
-  function removeRow(id: number) {
-    setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.id !== id) : prev));
+  async function removeRow(id: string) {
+    if (rows.length <= 1) return;
+    setRows((prev) => prev.filter((r) => r.id !== id));
+    if (rowSaveTimers.current[id]) clearTimeout(rowSaveTimers.current[id]);
+    await deleteCalculatorRow(id);
   }
 
-  async function fetchQuote(id: number, ticker: string) {
+  async function fetchQuote(id: string, ticker: string) {
     const t = ticker.trim();
     if (!t) return;
     setQuoteStatus((s) => ({ ...s, [id]: 'loading' }));
@@ -138,8 +153,8 @@ export default function CalculadorasPage() {
 
   // Busca automática: dispara sozinha ~700ms depois que o usuário para de
   // digitar o ticker, sem precisar clicar no botão de atualizar.
-  const debounceTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
-  const lastAutoFetchedTicker = useRef<Record<number, string>>({});
+  const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const lastAutoFetchedTicker = useRef<Record<string, string>>({});
 
   useEffect(() => {
     for (const row of rows) {
@@ -168,14 +183,18 @@ export default function CalculadorasPage() {
           </h1>
           <p className="text-sm text-muted-foreground">
             Compare várias PUTs lado a lado. Digite valores com vírgula (ex: ,80 ou 0,80). A cotação é buscada
-            automaticamente ao digitar o ativo.
+            automaticamente ao digitar o ativo. Dados salvos no seu Supabase — sincronizam entre dispositivos.
           </p>
         </div>
-        <Button size="sm" onClick={addRow}>
+        <Button size="sm" onClick={addRow} disabled={loading}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           Adicionar operação
         </Button>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-danger/20 bg-danger-muted px-4 py-3 text-sm text-danger">{error}</div>
+      )}
 
       <Card>
         <CardHeader>
@@ -184,7 +203,7 @@ export default function CalculadorasPage() {
         <CardContent>
           <div className="max-w-xs space-y-1">
             <Label>Caixa (R$)</Label>
-            <Input value={cashRaw} onChange={(e) => setCashRaw(e.target.value)} className="font-tabular" placeholder="0,00" />
+            <Input value={cashRaw} onChange={(e) => updateCash(e.target.value)} className="font-tabular" placeholder="0,00" />
             <p className="text-[11px] text-faint-foreground">Usado para calcular a quantidade e a garantia de todas as linhas abaixo.</p>
           </div>
         </CardContent>

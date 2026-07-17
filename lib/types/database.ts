@@ -248,3 +248,21 @@ export interface NamedStrategy {
   applies_to: 'PUT' | 'CALL' | 'AMBOS';
   created_at: string;
 }
+
+export interface CalculatorRow {
+  id: string;
+  position: number;
+  ticker: string;
+  quote: string;
+  strike: string;
+  ceiling: string;
+  premium: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CalculatorSettings {
+  id: string;
+  cash: string;
+  updated_at: string;
+}

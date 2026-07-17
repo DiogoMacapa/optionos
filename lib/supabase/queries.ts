@@ -14,6 +14,8 @@ import type {
   NamedStrategy,
   EquitySnapshot,
   CommissionSummary,
+  CalculatorRow,
+  CalculatorSettings,
 } from '@/lib/types/database';
 
 // ---------------------------------------------------------------
@@ -516,4 +518,50 @@ export async function listNamedStrategies(): Promise<NamedStrategy[]> {
   const { data, error } = await supabase.from('named_strategies').select('*').order('name');
   if (error) throw error;
   return data ?? [];
+}
+
+// ---------------------------------------------------------------
+// Calculator rows & settings (substitui localStorage — sincroniza
+// entre dispositivos e sobrevive a limpar dados do navegador)
+// ---------------------------------------------------------------
+export async function listCalculatorRows(): Promise<CalculatorRow[]> {
+  const { data, error } = await supabase.from('calculator_rows').select('*').order('position', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createCalculatorRow(position: number): Promise<CalculatorRow> {
+  const { data, error } = await supabase
+    .from('calculator_rows')
+    .insert({ position, ticker: '', quote: '', strike: '', ceiling: '', premium: '' })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCalculatorRow(
+  id: string,
+  patch: Partial<Pick<CalculatorRow, 'ticker' | 'quote' | 'strike' | 'ceiling' | 'premium' | 'position'>>
+): Promise<CalculatorRow> {
+  const { data, error } = await supabase.from('calculator_rows').update(patch).eq('id', id).select('*').single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCalculatorRow(id: string): Promise<void> {
+  const { error } = await supabase.from('calculator_rows').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function getCalculatorSettings(): Promise<CalculatorSettings> {
+  const { data, error } = await supabase.from('calculator_settings').select('*').limit(1).single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCalculatorSettings(id: string, cash: string): Promise<CalculatorSettings> {
+  const { data, error } = await supabase.from('calculator_settings').update({ cash }).eq('id', id).select('*').single();
+  if (error) throw error;
+  return data;
 }
