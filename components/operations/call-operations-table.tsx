@@ -265,6 +265,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, onChan
             <Th>IR (15%)</Th>
             <Th>Lucro Final</Th>
             <Th>Eficiência</Th>
+            <Th>Crédito IR</Th>
             <Th>Exercido?</Th>
             <Th>Ações</Th>
           </tr>
@@ -412,6 +413,19 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, onChan
                 </Td>
                 <Td>
                   <span className="font-tabular text-[11.5px] text-accent">{r.efficiency !== null ? formatPct(r.efficiency, 1) : '—'}</span>
+                </Td>
+                <Td width={90}>
+                  {r.netProfit !== null && r.netProfit < 0 && !editable ? (
+                    <InlineField
+                      key={`ircredit-${op.id}-${op.ir_credit_generated}`}
+                      initialValue={op.ir_credit_generated !== null && op.ir_credit_generated !== undefined ? formatNumber(op.ir_credit_generated, 2) : formatNumber(Math.abs(r.netProfit), 2)}
+                      onCommit={(v) => saveField(op, { ir_credit_generated: v.trim() === '' ? null : parseBRNumber(v) })}
+                      placeholder="0,00"
+                      width={70}
+                    />
+                  ) : (
+                    <span className="text-[11px] text-faint-foreground">—</span>
+                  )}
                 </Td>
                 <Td width={100}>
                   <select

@@ -18,6 +18,7 @@ import { KpiCard } from '@/components/dashboard/kpi-card';
 import { LineChartCard } from '@/components/dashboard/line-chart-card';
 import { PieChartCard } from '@/components/dashboard/pie-chart-card';
 import { BarChartCard } from '@/components/dashboard/bar-chart-card';
+import { IrCreditPanel } from '@/components/dashboard/ir-credit-panel';
 import { Button } from '@/components/ui/button';
 import { AiAnalysisDialog } from '@/components/shared/ai-analysis-dialog';
 import { useDashboardData, computeKpis, filterByHolder } from '@/lib/hooks/use-dashboard-data';
@@ -134,10 +135,14 @@ export default function DashboardPage() {
   ).map(([label, value]) => ({ label, value }));
 
   const currentHolderIrCredit = holderFilter
-    ? irCredit.find((c) => c.holder_id === holderFilter)
+    ? irCredit.find((c) => c.holder_id === holderFilter) ?? null
     : irCredit.reduce<IrCreditSummary | null>((acc, c) => {
         if (!acc) return { ...c };
-        return { ...acc, ir_credit_available: acc.ir_credit_available + c.ir_credit_available, ir_paid_total: acc.ir_paid_total + c.ir_paid_total };
+        return {
+          ...acc,
+          ir_credit_generated_total: acc.ir_credit_generated_total + c.ir_credit_generated_total,
+          ir_credit_used_total: acc.ir_credit_used_total + c.ir_credit_used_total,
+        };
       }, null);
 
   return (
@@ -207,16 +212,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {currentHolderIrCredit && currentHolderIrCredit.ir_credit_available > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-info/25 bg-info/10 px-4 py-3 text-sm text-info">
-          <Receipt className="mt-0.5 h-4 w-4 shrink-0" />
-          <div>
-            Você tem <strong>{formatBRL(currentHolderIrCredit.ir_credit_available)}</strong> em crédito de IR
-            acumulado de operações com prejuízo — pode ser usado para abater o IR de ganhos futuros na sua
-            declaração (esse abatimento não é feito automaticamente pelo sistema).
-          </div>
-        </div>
-      )}
+      <IrCreditPanel holderId={holderFilter} summary={currentHolderIrCredit} />
 
       {/* KPIs superiores */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

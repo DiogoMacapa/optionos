@@ -15,6 +15,7 @@ import type {
   EquitySnapshot,
   CommissionSummary,
   IrCreditSummary,
+  IrCreditUsage,
   CalculatorRow,
   CalculatorSettings,
 } from '@/lib/types/database';
@@ -305,6 +306,7 @@ export async function updateOperationFields(
       | 'option_symbol'
       | 'exercised_label'
       | 'counts_toward_equity'
+      | 'ir_credit_generated'
     >
   >
 ): Promise<Operation> {
@@ -443,6 +445,39 @@ export async function getIrCreditSummary(): Promise<IrCreditSummary[]> {
   const { data, error } = await supabase.from('ir_credit_summary').select('*');
   if (error) throw error;
   return data ?? [];
+}
+
+export async function listIrCreditUsage(holderId?: string): Promise<IrCreditUsage[]> {
+  let query = supabase.from('ir_credit_usage').select('*').order('used_at', { ascending: false });
+  if (holderId) query = query.eq('holder_id', holderId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createIrCreditUsage(input: {
+  holderId: string;
+  amount: number;
+  usedAt?: string;
+  notes?: string | null;
+}): Promise<IrCreditUsage> {
+  const { data, error } = await supabase
+    .from('ir_credit_usage')
+    .insert({
+      holder_id: input.holderId,
+      amount: input.amount,
+      used_at: input.usedAt ?? new Date().toISOString().slice(0, 10),
+      notes: input.notes ?? null,
+    })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteIrCreditUsage(id: string): Promise<void> {
+  const { error } = await supabase.from('ir_credit_usage').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ---------------------------------------------------------------

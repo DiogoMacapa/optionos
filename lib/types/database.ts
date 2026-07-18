@@ -156,6 +156,7 @@ export interface Operation {
   option_symbol: string | null;
   exercised_label: 'Sim' | 'Não' | 'Rolagem' | null;
   counts_toward_equity: boolean;
+  ir_credit_generated: number | null;
 
   premium_received: number;
   delta_at_open: number | null;
@@ -215,8 +216,17 @@ export interface CommissionSummary {
 export interface IrCreditSummary {
   holder_id: string;
   holder_name: string;
-  ir_credit_available: number;
-  ir_paid_total: number;
+  ir_credit_generated_total: number;
+  ir_credit_used_total: number;
+}
+
+export interface IrCreditUsage {
+  id: string;
+  holder_id: string;
+  amount: number;
+  used_at: string;
+  notes: string | null;
+  created_at: string;
 }
 
 export interface Holder {
