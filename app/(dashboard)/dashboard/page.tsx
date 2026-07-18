@@ -21,6 +21,13 @@ import { AiAnalysisDialog } from '@/components/shared/ai-analysis-dialog';
 import { useDashboardData, computeKpis, filterByHolder } from '@/lib/hooks/use-dashboard-data';
 import { buildPortfolioAnalysisPrompt } from '@/lib/ai/prompt-builder';
 import { formatBRL, formatPct } from '@/lib/utils';
+import {
+  mostProfitableAssets,
+  overallStats,
+  mostProfitableDeltaBands,
+  bestExpirationWeekdays,
+  bestStrikeDistanceBands,
+} from '@/lib/learning/statistics';
 
 export default function DashboardPage() {
   const { operations: allOperations, equityHistory: allEquityHistory, holders, loading, error } = useDashboardData();
@@ -58,16 +65,18 @@ export default function DashboardPage() {
         : 'var(--danger)',
   }));
 
-  const profitByAsset = Object.entries(
-    operations.reduce<Record<string, number>>((acc, o) => {
-      const ticker = o.asset?.ticker ?? '—';
-      acc[ticker] = (acc[ticker] || 0) + (o.net_profit || 0);
-      return acc;
-    }, {})
-  )
-    .map(([label, value]) => ({ label, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 6);
+  const profitByAsset = mostProfitableAssets(operations)
+    .slice(0, 6)
+    .map((a) => ({ label: a.ticker, value: a.totalProfit }));
+
+  const learning = overallStats(operations);
+  const deltaBands = mostProfitableDeltaBands(operations)
+    .slice(0, 6)
+    .map((d) => ({ label: d.label, value: d.avgProfit }));
+  const weekdayStats = bestExpirationWeekdays(operations).map((w) => ({ label: w.weekday.slice(0, 3), value: w.avgProfit }));
+  const strikeDistanceBands = bestStrikeDistanceBands(operations)
+    .slice(0, 6)
+    .map((s) => ({ label: s.label, value: s.avgProfit }));
 
   const monthlyResult = Object.entries(
     operations
@@ -179,6 +188,58 @@ export default function DashboardPage() {
           ]}
         />
       </div>
+
+      {/* Aprendizado: estatísticas agregadas do histórico real (só operações fechadas) */}
+      <div>
+        <h2 className="text-sm font-semibold tracking-tight text-foreground">Aprendizado</h2>
+        <p className="text-xs text-muted-foreground">
+          Análise estatística do seu histórico — considera apenas operações já fechadas (encerradas, exercidas ou roladas).
+        </p>
+      </div>
+
+      {learning.operationsCount === 0 ? (
+        <div className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted-foreground">
+          Nenhuma operação fechada ainda. As estatísticas de aprendizado aparecem aqui assim que você encerrar, for exercido, ou rolar sua primeira operação.
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <KpiCard label="Prêmio Médio" value={formatBRL(learning.averagePremium)} icon={Coins} />
+            <KpiCard label="Taxa de Exercício" value={formatPct(learning.exerciseRatePct, 1)} icon={Percent} />
+            <KpiCard label="Taxa de Sucesso" value={formatPct(learning.successRatePct, 1)} icon={Target} accent="accent" />
+            <KpiCard
+              label="Lucro Médio"
+              value={formatBRL(learning.averageProfit)}
+              icon={TrendingUp}
+              accent={(learning.averageProfit ?? 0) >= 0 ? 'accent' : 'danger'}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <BarChartCard
+              title="Delta Mais Lucrativo (lucro médio por faixa)"
+              data={deltaBands}
+              layout="vertical"
+              colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
+              emptyLabel="Sem operações com Delta registrado ainda."
+            />
+            <BarChartCard
+              title="Melhor Vencimento (lucro médio por dia da semana)"
+              data={weekdayStats}
+              layout="horizontal"
+              colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
+            />
+          </div>
+
+          <BarChartCard
+            title="Melhores Strikes (lucro médio por distância % OTM)"
+            data={strikeDistanceBands}
+            layout="horizontal"
+            colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
+            emptyLabel="Sem operações com Cotação de referência registrada ainda."
+          />
+        </>
+      )}
 
       {equityHistory.length < 2 && (
         <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/50 px-4 py-2.5">
