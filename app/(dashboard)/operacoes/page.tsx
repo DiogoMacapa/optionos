@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Layers, Briefcase, Plus } from 'lucide-react';
-import { ExpirationGroup, groupByExpiration } from '@/components/operations/expiration-group';
 import { MonthExpirationGroup, groupByExpirationMonth } from '@/components/operations/month-expiration-group';
+import { PutOperationsTable } from '@/components/operations/put-operations-table';
+import { CallOperationsTable } from '@/components/operations/call-operations-table';
 import { CloseOperationDialog } from '@/components/operations/close-operation-dialog';
 import { MyStocksTab } from '@/components/operations/my-stocks-tab';
 import {
@@ -93,7 +94,7 @@ export default function OperacoesPage() {
   const callOps = useMemo(() => filteredByHolder.filter((o) => o.option_type === 'CALL'), [filteredByHolder]);
 
   const putGrouped = useMemo(() => groupByExpirationMonth(putOps), [putOps]);
-  const callGrouped = useMemo(() => groupByExpiration(callOps), [callOps]);
+  const callGrouped = useMemo(() => groupByExpirationMonth(callOps), [callOps]);
 
   async function handleClose(input: CloseOperationInput) {
     await closeOperation(input);
@@ -261,11 +262,15 @@ export default function OperacoesPage() {
                     year={g.year}
                     month={g.month}
                     operations={g.operations}
-                    withdrawalsByOperation={withdrawalsByOperation}
-                    onChanged={refresh}
-                    onClose={handleOpenClose}
                     defaultOpen={i === putGrouped.length - 1}
-                  />
+                  >
+                    <PutOperationsTable
+                      operations={g.operations}
+                      withdrawalsByOperation={withdrawalsByOperation}
+                      onChanged={refresh}
+                      onClose={handleOpenClose}
+                    />
+                  </MonthExpirationGroup>
                 ))}
               </div>
             </>
@@ -276,11 +281,22 @@ export default function OperacoesPage() {
               {!loading && callOps.length === 0 && !error && (
                 <EmptyState label="Nenhuma operação de CALL ainda." />
               )}
-              <div className="flex flex-col gap-1">
-                {callGrouped.map(([expiration, ops], i) => (
-                  <div key={expiration} className={i > 0 ? 'border-t border-border pt-1' : ''}>
-                    <ExpirationGroup expiration={expiration} operations={ops} onClose={handleOpenClose} defaultOpen={i < 2} />
-                  </div>
+              <div className="flex flex-col gap-3">
+                {callGrouped.map((g, i) => (
+                  <MonthExpirationGroup
+                    key={`${g.year}-${g.month}`}
+                    year={g.year}
+                    month={g.month}
+                    operations={g.operations}
+                    defaultOpen={i === callGrouped.length - 1}
+                  >
+                    <CallOperationsTable
+                      operations={g.operations}
+                      withdrawalsByOperation={withdrawalsByOperation}
+                      onChanged={refresh}
+                      onClose={handleOpenClose}
+                    />
+                  </MonthExpirationGroup>
                 ))}
               </div>
             </>
