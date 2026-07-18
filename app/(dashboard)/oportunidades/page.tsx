@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { OpportunityCard } from '@/components/opportunities/opportunity-card';
-import { OpenOperationDialog } from '@/components/opportunities/open-operation-dialog';
 import { AiAnalysisDialog } from '@/components/shared/ai-analysis-dialog';
 import { PrintDropzone } from '@/components/ocr/print-dropzone';
 import { ChartConfirmForm } from '@/components/ocr/chart-confirm-form';
@@ -27,8 +26,6 @@ import {
   createOpportunity,
   listActiveOpportunities,
   discardOpportunity,
-  createOperation,
-  type NewOperationInput,
 } from '@/lib/supabase/queries';
 import type { Opportunity } from '@/lib/types/database';
 
@@ -46,8 +43,6 @@ export default function OportunidadesPage() {
   const [snapshotId, setSnapshotId] = useState<string | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
-  const [availableCash, setAvailableCash] = useState<number | null>(null);
-  const [openingOp, setOpeningOp] = useState<Opportunity | null>(null);
   const [analyzingOp, setAnalyzingOp] = useState<Opportunity | null>(null);
 
   const chartOcr = useChartOcr();
@@ -59,8 +54,6 @@ export default function OportunidadesPage() {
     try {
       const data = await listActiveOpportunities();
       setOpportunities(data);
-      const settings = await getStrategySettings();
-      setAvailableCash(settings.available_cash);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar oportunidades.');
     } finally {
@@ -75,11 +68,7 @@ export default function OportunidadesPage() {
       setError(null);
       try {
         const data = await listActiveOpportunities();
-        const settings = await getStrategySettings();
-        if (!cancelled) {
-          setOpportunities(data);
-          setAvailableCash(settings.available_cash);
-        }
+        if (!cancelled) setOpportunities(data);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Erro ao carregar oportunidades.');
       } finally {
@@ -213,13 +202,6 @@ export default function OportunidadesPage() {
     setOpportunities((prev) => prev.filter((o) => o.id !== id));
   }
 
-  async function handleOpenOperation(input: NewOperationInput) {
-    await createOperation(input);
-    setOpeningOp(null);
-    await discardOpportunity(input.opportunityId!);
-    setOpportunities((prev) => prev.filter((o) => o.id !== input.opportunityId));
-  }
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -261,7 +243,6 @@ export default function OportunidadesPage() {
             <OpportunityCard
               opportunity={op}
               onAnalyze={() => setAnalyzingOp(op)}
-              onOpenOperation={() => setOpeningOp(op)}
             />
             <button
               onClick={() => handleDiscard(op.id)}
@@ -273,16 +254,6 @@ export default function OportunidadesPage() {
           </div>
         ))}
       </div>
-
-      {openingOp && (
-        <OpenOperationDialog
-          opportunity={openingOp}
-          open={!!openingOp}
-          onOpenChange={(open) => !open && setOpeningOp(null)}
-          availableCash={availableCash}
-          onConfirm={handleOpenOperation}
-        />
-      )}
 
       {analyzingOp && (
         <AiAnalysisDialog

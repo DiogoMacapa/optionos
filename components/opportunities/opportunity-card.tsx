@@ -1,6 +1,6 @@
 'use client';
 
-import { Star, ChevronRight, Plus, Sparkles } from 'lucide-react';
+import { Star, ChevronRight, Sparkles } from 'lucide-react';
 import { cn, formatBRL, formatDate, formatNumber } from '@/lib/utils';
 import { efficiencyLabel } from '@/lib/scoring/engine';
 import { GlossaryTerm } from '@/components/shared/glossary-term';
@@ -9,7 +9,6 @@ import type { Opportunity } from '@/lib/types/database';
 interface OpportunityCardProps {
   opportunity: Opportunity;
   onClick?: () => void;
-  onOpenOperation?: () => void;
   onAnalyze?: () => void;
 }
 
@@ -19,7 +18,7 @@ function barColor(score: number): string {
   return 'var(--danger)';
 }
 
-export function OpportunityCard({ opportunity, onClick, onOpenOperation, onAnalyze }: OpportunityCardProps) {
+export function OpportunityCard({ opportunity, onClick, onAnalyze }: OpportunityCardProps) {
   const entry = opportunity.option_chain_entry;
   const asset = opportunity.asset;
   const eff = efficiencyLabel(opportunity.efficiency_pct);
@@ -92,32 +91,18 @@ export function OpportunityCard({ opportunity, onClick, onOpenOperation, onAnaly
         </div>
       </div>
 
-      {(onOpenOperation || onAnalyze) && (
+      {onAnalyze && (
         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          {onAnalyze && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAnalyze();
-              }}
-              title="Analisar com IA"
-              className="rounded-md p-1.5 text-faint-foreground hover:bg-surface hover:text-accent"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-            </button>
-          )}
-          {onOpenOperation && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenOperation();
-              }}
-              title="Abrir operação"
-              className="rounded-md p-1.5 text-faint-foreground hover:bg-surface hover:text-accent"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAnalyze();
+            }}
+            title="Analisar com IA"
+            className="rounded-md p-1.5 text-faint-foreground hover:bg-surface hover:text-accent"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
 
