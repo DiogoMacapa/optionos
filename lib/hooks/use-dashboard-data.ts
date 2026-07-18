@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import type { Operation, EquitySnapshot, Holder, StrategySettings } from '@/lib/types/database';
+import type { Operation, EquitySnapshot, Holder, StrategySettings, Withdrawal } from '@/lib/types/database';
 
 export interface DashboardData {
   operations: Operation[];
   equityHistory: EquitySnapshot[];
   holders: Holder[];
   strategySettings: StrategySettings | null;
+  withdrawals: Withdrawal[];
   loading: boolean;
   error: string | null;
 }
@@ -18,6 +19,7 @@ export function useDashboardData(): DashboardData {
   const [equityHistory, setEquityHistory] = useState<EquitySnapshot[]>([]);
   const [holders, setHolders] = useState<Holder[]>([]);
   const [strategySettings, setStrategySettings] = useState<StrategySettings | null>(null);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,11 +30,12 @@ export function useDashboardData(): DashboardData {
       setLoading(true);
       setError(null);
 
-      const [opsRes, equityRes, holdersRes, settingsRes] = await Promise.all([
+      const [opsRes, equityRes, holdersRes, settingsRes, withdrawalsRes] = await Promise.all([
         supabase.from('operations').select('*, asset:assets(*), holder:holders(*)').order('opened_at', { ascending: false }),
         supabase.from('equity_snapshots').select('*').order('recorded_at', { ascending: true }),
         supabase.from('holders').select('*').eq('active', true).order('is_self', { ascending: false }),
         supabase.from('strategy_settings').select('*').limit(1).single(),
+        supabase.from('withdrawals').select('*'),
       ]);
 
       if (cancelled) return;
@@ -55,6 +58,10 @@ export function useDashboardData(): DashboardData {
         setStrategySettings(settingsRes.data as StrategySettings);
       }
 
+      if (!withdrawalsRes.error) {
+        setWithdrawals((withdrawalsRes.data ?? []) as Withdrawal[]);
+      }
+
       setLoading(false);
     }
 
@@ -64,29 +71,46 @@ export function useDashboardData(): DashboardData {
     };
   }, []);
 
-  return { operations, equityHistory, holders, strategySettings, loading, error };
+  return { operations, equityHistory, holders, strategySettings, withdrawals, loading, error };
 }
 
 // ------------------------------------------------------------
-// Filtra operações por titular. holderId === null significa "todos".
+// Filtra operações (e saques) por titular. holderId === null significa "todos".
 // ------------------------------------------------------------
-export function filterByHolder(operations: Operation[], holderId: string | null): { operations: Operation[] } {
-  if (holderId === null) return { operations };
-  return { operations: operations.filter((o) => o.holder_id === holderId) };
+export function filterByHolder(
+  operations: Operation[],
+  holderId: string | null,
+  withdrawals: Withdrawal[] = []
+): { operations: Operation[]; withdrawals: Withdrawal[] } {
+  if (holderId === null) return { operations, withdrawals };
+  return {
+    operations: operations.filter((o) => o.holder_id === holderId),
+    withdrawals: withdrawals.filter((w) => w.holder_id === holderId),
+  };
 }
 
 // ------------------------------------------------------------
 // Cálculos derivados a partir das operações (KPIs do dashboard)
 //
-// IMPORTANTE: Caixa Livre, Capital Comprometido e Patrimônio Atual
-// NÃO usam mais o snapshot manual de equity_snapshots (que ficava
-// desatualizado, gerando números falsos tipo "caixa livre" quando na
-// verdade 100% do caixa estava comprometido). Agora derivam sempre
-// de strategy_settings.available_cash — o único número que o usuário
-// atualiza manualmente — mais o que está de fato comprometido nas
-// operações abertas neste momento.
+// NOVO MODELO (automático, sem atualização manual semanal):
+//
+//   Caixa disponível hoje = Patrimônio Inicial
+//                          + soma do lucro líquido de operações FECHADAS
+//                          − soma dos saques registrados
+//
+//   Capital Comprometido = soma do capital das operações ABERTAS
+//
+//   Caixa Livre = Caixa disponível hoje − Capital Comprometido
+//
+//   Patrimônio Atual = Caixa disponível hoje + Reserva de Emergência
+//                     (a reserva soma ao patrimônio total, mas não é
+//                     operável — nunca entra no cálculo de cobertura)
+//
+// O usuário informa Patrimônio Inicial (initial_equity) UMA VEZ, antes
+// da primeira operação no sistema, e marca saques por operação
+// específica (withdrawals.operation_id) — o resto é automático.
 // ------------------------------------------------------------
-export function computeKpis(operations: Operation[], strategySettings: StrategySettings | null) {
+export function computeKpis(operations: Operation[], strategySettings: StrategySettings | null, withdrawals: Withdrawal[] = []) {
   const openOps = operations.filter((o) => o.status === 'aberta');
   const closedOps = operations.filter((o) => o.status !== 'aberta' && o.net_profit !== null);
 
@@ -94,6 +118,7 @@ export function computeKpis(operations: Operation[], strategySettings: StrategyS
   const totalProfit = operations.reduce((sum, o) => sum + (o.net_profit || 0), 0);
   const totalIrPaid = operations.reduce((sum, o) => sum + (o.ir_amount && (o.gross_result ?? 0) > 0 ? o.ir_amount : 0), 0);
   const committedCapital = openOps.reduce((sum, o) => sum + (o.committed_capital || 0), 0);
+  const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0);
 
   const successCount = closedOps.filter((o) => (o.net_profit || 0) > 0).length;
   const successRate = closedOps.length > 0 ? (successCount / closedOps.length) * 100 : 0;
@@ -101,25 +126,22 @@ export function computeKpis(operations: Operation[], strategySettings: StrategyS
   const exercisedCount = closedOps.filter((o) => o.exercised_label === 'Sim').length;
   const exerciseRate = closedOps.length > 0 ? (exercisedCount / closedOps.length) * 100 : 0;
 
-  const availableCash = strategySettings?.available_cash ?? null;
+  const initialEquity = strategySettings?.initial_equity ?? null;
   const emergencyReserve = strategySettings?.emergency_reserve ?? 0;
 
-  // Caixa livre = o que você informou como disponível, menos o que já está
-  // comprometido em operações abertas neste momento (nunca pode ficar negativo
-  // na exibição — se der negativo é sinal de que available_cash está desatualizado).
-  const freeCash = availableCash !== null ? Math.max(0, availableCash - committedCapital) : null;
+  // Caixa disponível hoje: automático, sem depender de atualização manual.
+  const cashToday = initialEquity !== null ? initialEquity + totalProfit - totalWithdrawn : null;
 
-  // Patrimônio atual = caixa disponível informado + reserva de emergência
-  // (que soma ao patrimônio total, mas não é operável) + lucro acumulado.
-  // Isso substitui o "total_equity" do snapshot manual desatualizado.
-  const currentEquity = availableCash !== null ? availableCash + emergencyReserve : null;
+  const freeCash = cashToday !== null ? Math.max(0, cashToday - committedCapital) : null;
+  const currentEquity = cashToday !== null ? cashToday + emergencyReserve : null;
 
   return {
     currentEquity,
-    initialEquity: null as number | null, // patrimônio inicial ainda depende de snapshot histórico manual
+    initialEquity,
     totalProfit,
     totalPremiums,
     totalIrPaid,
+    totalWithdrawn,
     freeCash,
     committedCapital,
     emergencyReserve,

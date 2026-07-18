@@ -62,6 +62,7 @@ export default function ConfiguracoesPage() {
           min_delta: String(s.min_delta ?? '').replace('.', ','),
           available_cash: s.available_cash === null ? '' : String(s.available_cash).replace('.', ','),
           emergency_reserve: String(s.emergency_reserve ?? 0).replace('.', ','),
+          initial_equity: s.initial_equity === null ? '' : String(s.initial_equity).replace('.', ','),
           max_concentration_pct: s.max_concentration_pct === null ? '' : String(s.max_concentration_pct).replace('.', ','),
           min_days_to_expiration: s.min_days_to_expiration === null ? '' : String(s.min_days_to_expiration),
           max_days_to_expiration: s.max_days_to_expiration === null ? '' : String(s.max_days_to_expiration),
@@ -106,6 +107,7 @@ export default function ConfiguracoesPage() {
         min_delta: parseBRNumber(settingsText.min_delta ?? '0'),
         available_cash: settingsText.available_cash?.trim() ? parseBRNumber(settingsText.available_cash) : null,
         emergency_reserve: parseBRNumber(settingsText.emergency_reserve ?? '0'),
+        initial_equity: settingsText.initial_equity?.trim() ? parseBRNumber(settingsText.initial_equity) : null,
         max_concentration_pct: settingsText.max_concentration_pct?.trim()
           ? parseBRNumber(settingsText.max_concentration_pct)
           : null,
@@ -222,8 +224,25 @@ export default function ConfiguracoesPage() {
                 onChange={(e) => setSettingsText((t) => ({ ...t, available_cash: e.target.value }))}
               />
               <p className="text-[11px] text-faint-foreground">
-                Atualize sempre que abrir/encerrar uma operação — alimenta Patrimônio, Caixa Livre e Capital
-                Comprometido no Dashboard.
+                Usado nas Calculadoras e para verificar cobertura ao abrir uma nova PUT. Não alimenta mais o
+                Dashboard — veja &quot;Patrimônio Inicial&quot; abaixo.
+              </p>
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label className="flex items-center gap-1.5">
+                Patrimônio Inicial (R$)
+                <span className="rounded bg-accent-muted px-1.5 py-0.5 text-[9px] font-bold text-accent">DEFINE UMA VEZ</span>
+              </Label>
+              <Input
+                className="font-tabular"
+                value={settingsText.initial_equity ?? ''}
+                onChange={(e) => setSettingsText((t) => ({ ...t, initial_equity: e.target.value }))}
+              />
+              <p className="text-[11px] text-faint-foreground">
+                O caixa que você tinha antes da primeira operação registrada no sistema. A partir daqui o
+                Dashboard calcula Patrimônio, Caixa Livre e Capital Comprometido sozinho, somando o lucro
+                líquido de cada operação fechada e descontando os saques que você marcar — não precisa mais
+                atualizar esse número toda semana.
               </p>
             </div>
             <div className="space-y-1">

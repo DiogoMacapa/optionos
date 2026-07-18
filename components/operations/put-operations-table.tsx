@@ -1,17 +1,25 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { RefreshCw, Trash2 } from 'lucide-react';
+import { RefreshCw, Trash2, Wallet } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { WeekRangePicker } from '@/components/operations/week-range-picker';
 import { DatePickerField } from '@/components/operations/date-picker-field';
 import { formatBRL, formatPct, formatNumber, formatDate, parseBRNumber, cn } from '@/lib/utils';
-import { updateOperationFields, updateAssetCeiling, findOrCreateAsset, deleteOperation } from '@/lib/supabase/queries';
+import {
+  updateOperationFields,
+  updateAssetCeiling,
+  findOrCreateAsset,
+  deleteOperation,
+  createWithdrawal,
+  deleteWithdrawal,
+} from '@/lib/supabase/queries';
 import { calculateNetProfit } from '@/lib/calculations/finance';
-import type { Operation } from '@/lib/types/database';
+import type { Operation, Withdrawal } from '@/lib/types/database';
 
 interface PutOperationsTableProps {
   operations: Operation[];
+  withdrawalsByOperation: Record<string, Withdrawal>;
   onChanged: () => void;
   onClose: (op: Operation) => void;
 }
@@ -133,7 +141,7 @@ function InlineField({
   );
 }
 
-export function PutOperationsTable({ operations, onChanged, onClose }: PutOperationsTableProps) {
+export function PutOperationsTable({ operations, withdrawalsByOperation, onChanged, onClose }: PutOperationsTableProps) {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [quoteLoadingId, setQuoteLoadingId] = useState<string | null>(null);
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -179,6 +187,27 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
     setSavingId(op.id);
     try {
       await deleteOperation(op.id);
+      onChanged();
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  /**
+   * Marca/desmarca que o prêmio desta operação foi SACADO — quando marcado,
+   * o valor não conta mais no acúmulo de Patrimônio do Dashboard (evita
+   * contar dinheiro que já saiu da conta).
+   */
+  async function handleToggleWithdrawal(op: Operation) {
+    const existing = withdrawalsByOperation[op.id];
+    setSavingId(op.id);
+    try {
+      if (existing) {
+        await deleteWithdrawal(existing.id);
+      } else {
+        const amount = op.net_profit ?? op.premium_received;
+        await createWithdrawal({ holderId: op.holder_id, operationId: op.id, amount, notes: `Saque do prêmio — ${op.asset?.ticker ?? ''}` });
+      }
       onChanged();
     } finally {
       setSavingId(null);
@@ -538,6 +567,21 @@ export function PutOperationsTable({ operations, onChanged, onClose }: PutOperat
                         className="whitespace-nowrap rounded-md border border-border bg-surface-elevated px-2 py-1 text-[10.5px] font-medium text-foreground hover:bg-surface-hover"
                       >
                         Encerrar
+                      </button>
+                    )}
+                    {!editable && (
+                      <button
+                        onClick={() => handleToggleWithdrawal(op)}
+                        title={withdrawalsByOperation[op.id] ? 'Marcado como sacado — clique para desmarcar' : 'Marcar prêmio desta operação como sacado'}
+                        className={cn(
+                          'flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 text-[10.5px] font-medium',
+                          withdrawalsByOperation[op.id]
+                            ? 'border-warning/40 bg-warning-muted text-warning'
+                            : 'border-border bg-surface-elevated text-foreground hover:bg-surface-hover'
+                        )}
+                      >
+                        <Wallet className="h-3 w-3" />
+                        {withdrawalsByOperation[op.id] ? 'Sacado' : 'Sacar'}
                       </button>
                     )}
                     <button

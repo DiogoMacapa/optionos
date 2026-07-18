@@ -106,6 +106,7 @@ export interface StrategySettings {
   min_delta: number;
   available_cash: number | null;
   emergency_reserve: number;
+  initial_equity: number | null;
   max_concentration_pct: number | null;
   min_days_to_expiration: number | null;
   max_days_to_expiration: number | null;

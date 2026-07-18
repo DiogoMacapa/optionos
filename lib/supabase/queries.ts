@@ -570,6 +570,18 @@ export async function createWithdrawal(input: {
   return data;
 }
 
+export async function deleteWithdrawal(id: string): Promise<void> {
+  const { error } = await supabase.from('withdrawals').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/** Busca o saque vinculado a uma operação específica, se houver (uma operação tem no máximo um saque). */
+export async function getWithdrawalForOperation(operationId: string): Promise<Withdrawal | null> {
+  const { data, error } = await supabase.from('withdrawals').select('*').eq('operation_id', operationId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 // ---------------------------------------------------------------
 // Named strategies (glossário de táticas, para contexto de IA)
 // ---------------------------------------------------------------

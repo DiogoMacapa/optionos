@@ -34,7 +34,7 @@ import {
 import type { IrCreditSummary } from '@/lib/types/database';
 
 export default function DashboardPage() {
-  const { operations: allOperations, holders, strategySettings, loading, error } = useDashboardData();
+  const { operations: allOperations, holders, strategySettings, withdrawals: allWithdrawals, loading, error } = useDashboardData();
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
   const [holderFilter, setHolderFilter] = useState<string | null>(null); // null = todos
   const [irCredit, setIrCredit] = useState<IrCreditSummary[]>([]);
@@ -45,8 +45,8 @@ export default function DashboardPage() {
       .catch(() => setIrCredit([]));
   }, []);
 
-  const { operations } = filterByHolder(allOperations, holderFilter);
-  const kpis = computeKpis(operations, strategySettings);
+  const { operations, withdrawals } = filterByHolder(allOperations, holderFilter, allWithdrawals);
+  const kpis = computeKpis(operations, strategySettings, withdrawals);
 
   const closedChronological = [...operations]
     .filter((o) => o.status !== 'aberta' && o.net_profit !== null && o.closed_at)
@@ -64,6 +64,25 @@ export default function DashboardPage() {
     acc.push({ date: (o.closed_at as string).slice(0, 10), value: previous + (o.net_profit ?? 0) });
     return acc;
   }, []);
+
+  // Evolução Patrimonial: patrimônio inicial + lucro líquido acumulado, com
+  // saques subtraídos na data em que ocorreram — intercala operações fechadas
+  // e saques em ordem cronológica.
+  const equitySeries = (() => {
+    const initial = kpis.initialEquity;
+    if (initial === null) return [];
+    type Event = { date: string; delta: number };
+    const events: Event[] = [
+      ...closedChronological.map((o) => ({ date: (o.closed_at as string).slice(0, 10), delta: o.net_profit ?? 0 })),
+      ...withdrawals.map((w) => ({ date: w.withdrawn_at, delta: -w.amount })),
+    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    return events.reduce<{ date: string; value: number }[]>((acc, ev) => {
+      const previous = acc.length > 0 ? acc[acc.length - 1].value : initial;
+      acc.push({ date: ev.date, value: previous + ev.delta });
+      return acc;
+    }, []);
+  })();
 
   const equityCompositionData =
     kpis.freeCash !== null
@@ -176,9 +195,10 @@ export default function DashboardPage() {
         <div className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-muted px-4 py-3 text-sm text-warning">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
-            Nenhum caixa disponível informado. Patrimônio, Caixa Livre e Capital Comprometido dependem do campo{' '}
-            <strong>Caixa disponível</strong> em Configurações → Estratégia — atualize-o sempre que fizer uma nova
-            operação, para que estes números reflitam a realidade.
+            Informe o <strong>Patrimônio Inicial</strong> em Configurações → Estratégia — só precisa fazer isso
+            uma vez (o caixa que você tinha antes da primeira operação no sistema). Daí em diante, Patrimônio,
+            Caixa Livre e Capital Comprometido são calculados automaticamente a partir do seu histórico de
+            operações, sem precisar atualizar nada manualmente.
           </div>
         </div>
       )}
@@ -197,9 +217,11 @@ export default function DashboardPage() {
       {/* KPIs superiores */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <KpiCard label="Patrimônio Atual" value={formatBRL(kpis.currentEquity)} icon={Wallet} accent="accent" />
+        <KpiCard label="Patrimônio Inicial" value={formatBRL(kpis.initialEquity)} icon={Wallet} />
         <KpiCard label="Lucro Total (líquido)" value={formatBRL(kpis.totalProfit)} icon={TrendingUp} accent={kpis.totalProfit >= 0 ? 'accent' : 'danger'} />
         <KpiCard label="Prêmios Recebidos (bruto)" value={formatBRL(kpis.totalPremiums)} icon={Coins} accent="accent" />
         <KpiCard label="Total de IR Pago" value={formatBRL(kpis.totalIrPaid)} icon={Receipt} accent="danger" />
+        <KpiCard label="Total Sacado" value={formatBRL(kpis.totalWithdrawn)} icon={PiggyBank} />
         <KpiCard label="Caixa Livre" value={formatBRL(kpis.freeCash)} icon={PiggyBank} />
         <KpiCard label="Capital Comprometido" value={formatBRL(kpis.committedCapital)} icon={Lock} />
         <KpiCard label="Operações Abertas" value={String(kpis.openOperationsCount)} icon={Layers} />
@@ -208,11 +230,13 @@ export default function DashboardPage() {
 
       {/* Gráficos de evolução */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <LineChartCard title="Evolução Patrimonial" data={equitySeries} emptyLabel="Informe o Patrimônio Inicial em Configurações." />
         <LineChartCard title="Evolução dos Prêmios (bruto)" data={premiumSeries} color="var(--info)" />
         <LineChartCard title="Evolução do Lucro (líquido, pós-IR)" data={profitSeries} color="var(--accent)" />
-        <PieChartCard title="Patrimônio × Caixa" data={equityCompositionData} emptyLabel="Informe o Caixa disponível em Configurações." />
-        <PieChartCard title="Distribuição das Operações" data={statusDistribution} />
+        <PieChartCard title="Patrimônio × Caixa" data={equityCompositionData} emptyLabel="Informe o Patrimônio Inicial em Configurações." />
       </div>
+
+      <PieChartCard title="Distribuição das Operações" data={statusDistribution} />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <BarChartCard

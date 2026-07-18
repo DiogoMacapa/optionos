@@ -14,15 +14,17 @@ import {
   createOperation,
   getSelfHolder,
   findOrCreateAsset,
+  listWithdrawals,
   type CloseOperationInput,
   type NewOperationInput,
 } from '@/lib/supabase/queries';
-import type { Operation } from '@/lib/types/database';
+import type { Operation, Withdrawal } from '@/lib/types/database';
 
 export default function OperacoesPage() {
   const [mainTab, setMainTab] = useState<'operacoes' | 'acoes'>('operacoes');
   const [subTab, setSubTab] = useState<'PUT' | 'CALL'>('PUT');
   const [operations, setOperations] = useState<Operation[]>([]);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [holderFilter, setHolderFilter] = useState<string | 'todos'>('todos');
@@ -34,8 +36,9 @@ export default function OperacoesPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await listOperations();
-      setOperations(data);
+      const [ops, wds] = await Promise.all([listOperations(), listWithdrawals()]);
+      setOperations(ops);
+      setWithdrawals(wds);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar operações.');
     } finally {
@@ -49,8 +52,11 @@ export default function OperacoesPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await listOperations();
-        if (!cancelled) setOperations(data);
+        const [ops, wds] = await Promise.all([listOperations(), listWithdrawals()]);
+        if (!cancelled) {
+          setOperations(ops);
+          setWithdrawals(wds);
+        }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Erro ao carregar operações.');
       } finally {
@@ -61,6 +67,14 @@ export default function OperacoesPage() {
       cancelled = true;
     };
   }, []);
+
+  const withdrawalsByOperation = useMemo(() => {
+    const map: Record<string, Withdrawal> = {};
+    for (const w of withdrawals) {
+      if (w.operation_id) map[w.operation_id] = w;
+    }
+    return map;
+  }, [withdrawals]);
 
   const filteredByHolder = useMemo(
     () => (holderFilter === 'todos' ? operations : operations.filter((o) => o.holder_id === holderFilter)),
@@ -247,6 +261,7 @@ export default function OperacoesPage() {
                     year={g.year}
                     month={g.month}
                     operations={g.operations}
+                    withdrawalsByOperation={withdrawalsByOperation}
                     onChanged={refresh}
                     onClose={handleOpenClose}
                     defaultOpen={i === putGrouped.length - 1}

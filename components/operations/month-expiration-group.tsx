@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { PutOperationsTable } from '@/components/operations/put-operations-table';
-import type { Operation } from '@/lib/types/database';
+import type { Operation, Withdrawal } from '@/lib/types/database';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -32,12 +32,21 @@ interface MonthExpirationGroupProps {
   year: number;
   month: number;
   operations: Operation[];
+  withdrawalsByOperation: Record<string, Withdrawal>;
   onChanged: () => void;
   onClose: (op: Operation) => void;
   defaultOpen?: boolean;
 }
 
-export function MonthExpirationGroup({ year, month, operations, onChanged, onClose, defaultOpen = true }: MonthExpirationGroupProps) {
+export function MonthExpirationGroup({
+  year,
+  month,
+  operations,
+  withdrawalsByOperation,
+  onChanged,
+  onClose,
+  defaultOpen = true,
+}: MonthExpirationGroupProps) {
   const [open, setOpen] = useState(defaultOpen);
   const openCount = operations.filter((o) => o.status === 'aberta').length;
 
@@ -65,7 +74,12 @@ export function MonthExpirationGroup({ year, month, operations, onChanged, onClo
       </button>
       {open && (
         <div className="px-3 pb-3">
-          <PutOperationsTable operations={operations} onChanged={onChanged} onClose={onClose} />
+          <PutOperationsTable
+            operations={operations}
+            withdrawalsByOperation={withdrawalsByOperation}
+            onChanged={onChanged}
+            onClose={onClose}
+          />
         </div>
       )}
     </div>
