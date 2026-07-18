@@ -111,11 +111,11 @@ export default function OperacoesPage() {
   }
 
   /**
-   * Cria uma operação PUT em branco (valores mínimos) para o usuário
+   * Cria uma operação em branco (valores mínimos) para o usuário
    * preencher diretamente na tabela — mesmo fluxo de edição inline já
    * usado nas linhas existentes, sem formulário separado.
    */
-  async function handleAddOperation() {
+  async function handleAddOperation(optionType: 'PUT' | 'CALL') {
     setAddingOperation(true);
     try {
       const [holder, asset] = await Promise.all([getSelfHolder(), findOrCreateAsset('NOVO')]);
@@ -124,7 +124,7 @@ export default function OperacoesPage() {
         assetId: asset.id,
         holderId: holder.id,
         opportunityId: null,
-        optionType: 'PUT',
+        optionType,
         strike: 0,
         expiration: today,
         quantity: 0,
@@ -168,14 +168,14 @@ export default function OperacoesPage() {
             </button>
           </div>
 
-          {mainTab === 'operacoes' && subTab === 'PUT' && (
+          {mainTab === 'operacoes' && (
             <button
-              onClick={handleAddOperation}
+              onClick={() => handleAddOperation(subTab)}
               disabled={addingOperation}
               className="flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent-muted px-3 py-1.5 text-xs font-semibold text-accent transition-colors hover:bg-accent-muted/70 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus className="h-3.5 w-3.5" />
-              {addingOperation ? 'Adicionando…' : 'Adicionar operação'}
+              {addingOperation ? 'Adicionando…' : `Adicionar operação ${subTab}`}
             </button>
           )}
         </div>
