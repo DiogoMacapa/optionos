@@ -114,6 +114,9 @@ export function computeKpis(operations: Operation[], strategySettings: StrategyS
   const openOps = operations.filter((o) => o.status === 'aberta');
   const closedOps = operations.filter((o) => o.status !== 'aberta' && o.net_profit !== null);
 
+  // KPIs informativos (Lucro Total, Prêmios Recebidos) somam TUDO, incluindo
+  // operações marcadas como "histórico" — são sobre a atividade real do
+  // usuário, não sobre o cálculo de patrimônio.
   const totalPremiums = operations.reduce((sum, o) => sum + (o.premium_received || 0), 0);
   const totalProfit = operations.reduce((sum, o) => sum + (o.net_profit || 0), 0);
   const totalIrPaid = operations.reduce((sum, o) => sum + (o.ir_amount && (o.gross_result ?? 0) > 0 ? o.ir_amount : 0), 0);
@@ -129,8 +132,15 @@ export function computeKpis(operations: Operation[], strategySettings: StrategyS
   const initialEquity = strategySettings?.initial_equity ?? null;
   const emergencyReserve = strategySettings?.emergency_reserve ?? 0;
 
+  // Só operações com counts_toward_equity=true somam ao patrimônio — evita
+  // contagem duplicada quando o Patrimônio Inicial já reflete o resultado
+  // de um histórico importado (ex: operações antigas de antes do sistema).
+  const equityImpactingProfit = closedOps
+    .filter((o) => o.counts_toward_equity)
+    .reduce((sum, o) => sum + (o.net_profit || 0), 0);
+
   // Caixa disponível hoje: automático, sem depender de atualização manual.
-  const cashToday = initialEquity !== null ? initialEquity + totalProfit - totalWithdrawn : null;
+  const cashToday = initialEquity !== null ? initialEquity + equityImpactingProfit - totalWithdrawn : null;
 
   const freeCash = cashToday !== null ? Math.max(0, cashToday - committedCapital) : null;
   const currentEquity = cashToday !== null ? cashToday + emergencyReserve : null;

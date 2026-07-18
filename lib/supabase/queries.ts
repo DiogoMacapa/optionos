@@ -304,6 +304,7 @@ export async function updateOperationFields(
       | 'buyback_premium'
       | 'option_symbol'
       | 'exercised_label'
+      | 'counts_toward_equity'
     >
   >
 ): Promise<Operation> {

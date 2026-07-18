@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { RefreshCw, Trash2, Wallet } from 'lucide-react';
+import { RefreshCw, Trash2, Wallet, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { WeekRangePicker } from '@/components/operations/week-range-picker';
 import { DatePickerField } from '@/components/operations/date-picker-field';
@@ -208,6 +208,22 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, onChang
         const amount = op.net_profit ?? op.premium_received;
         await createWithdrawal({ holderId: op.holder_id, operationId: op.id, amount, notes: `Saque do prêmio — ${op.asset?.ticker ?? ''}` });
       }
+      onChanged();
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  /**
+   * Marca/desmarca a operação como "histórico" — quando marcada, continua
+   * contando em Aprendizado/estatísticas, mas SAI do cálculo automático de
+   * Patrimônio (usado quando o Patrimônio Inicial já reflete o resultado
+   * dessa operação, evitando contagem duplicada).
+   */
+  async function handleToggleEquityImpact(op: Operation) {
+    setSavingId(op.id);
+    try {
+      await updateOperationFields(op.id, { counts_toward_equity: !op.counts_toward_equity });
       onChanged();
     } finally {
       setSavingId(null);
@@ -582,6 +598,25 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, onChang
                       >
                         <Wallet className="h-3 w-3" />
                         {withdrawalsByOperation[op.id] ? 'Sacado' : 'Sacar'}
+                      </button>
+                    )}
+                    {!editable && (
+                      <button
+                        onClick={() => handleToggleEquityImpact(op)}
+                        title={
+                          op.counts_toward_equity
+                            ? 'Conta no cálculo de Patrimônio — clique para marcar como histórico (não conta de novo)'
+                            : 'Marcada como histórico — não conta no cálculo de Patrimônio (mas conta no Aprendizado)'
+                        }
+                        className={cn(
+                          'flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 text-[10.5px] font-medium',
+                          !op.counts_toward_equity
+                            ? 'border-info/40 bg-info/10 text-info'
+                            : 'border-border bg-surface-elevated text-faint-foreground hover:bg-surface-hover'
+                        )}
+                      >
+                        <History className="h-3 w-3" />
+                        {op.counts_toward_equity ? 'Conta' : 'Histórico'}
                       </button>
                     )}
                     <button

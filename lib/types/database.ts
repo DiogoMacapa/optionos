@@ -155,6 +155,7 @@ export interface Operation {
   reference_quote: number | null;
   option_symbol: string | null;
   exercised_label: 'Sim' | 'Não' | 'Rolagem' | null;
+  counts_toward_equity: boolean;
 
   premium_received: number;
   delta_at_open: number | null;
