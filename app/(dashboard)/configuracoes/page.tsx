@@ -61,6 +61,7 @@ export default function ConfiguracoesPage() {
           max_delta: String(s.max_delta ?? '').replace('.', ','),
           min_delta: String(s.min_delta ?? '').replace('.', ','),
           available_cash: s.available_cash === null ? '' : String(s.available_cash).replace('.', ','),
+          emergency_reserve: String(s.emergency_reserve ?? 0).replace('.', ','),
           max_concentration_pct: s.max_concentration_pct === null ? '' : String(s.max_concentration_pct).replace('.', ','),
           min_days_to_expiration: s.min_days_to_expiration === null ? '' : String(s.min_days_to_expiration),
           max_days_to_expiration: s.max_days_to_expiration === null ? '' : String(s.max_days_to_expiration),
@@ -104,6 +105,7 @@ export default function ConfiguracoesPage() {
         max_delta: parseBRNumber(settingsText.max_delta ?? '0'),
         min_delta: parseBRNumber(settingsText.min_delta ?? '0'),
         available_cash: settingsText.available_cash?.trim() ? parseBRNumber(settingsText.available_cash) : null,
+        emergency_reserve: parseBRNumber(settingsText.emergency_reserve ?? '0'),
         max_concentration_pct: settingsText.max_concentration_pct?.trim()
           ? parseBRNumber(settingsText.max_concentration_pct)
           : null,
@@ -219,6 +221,21 @@ export default function ConfiguracoesPage() {
                 value={settingsText.available_cash ?? ''}
                 onChange={(e) => setSettingsText((t) => ({ ...t, available_cash: e.target.value }))}
               />
+              <p className="text-[11px] text-faint-foreground">
+                Atualize sempre que abrir/encerrar uma operação — alimenta Patrimônio, Caixa Livre e Capital
+                Comprometido no Dashboard.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label>Reserva de emergência (R$)</Label>
+              <Input
+                className="font-tabular"
+                value={settingsText.emergency_reserve ?? ''}
+                onChange={(e) => setSettingsText((t) => ({ ...t, emergency_reserve: e.target.value }))}
+              />
+              <p className="text-[11px] text-faint-foreground">
+                Dinheiro no cofrinho do banco — soma ao Patrimônio, mas você não opera com ele.
+              </p>
             </div>
             <div className="space-y-1">
               <Label>Concentração máxima por operação (%)</Label>

@@ -105,6 +105,7 @@ export interface StrategySettings {
   max_delta: number;
   min_delta: number;
   available_cash: number | null;
+  emergency_reserve: number;
   max_concentration_pct: number | null;
   min_days_to_expiration: number | null;
   max_days_to_expiration: number | null;
@@ -207,6 +208,13 @@ export interface CommissionSummary {
   commission_pct: number;
   commission_earned: number;
   commission_withdrawn: number;
+}
+
+export interface IrCreditSummary {
+  holder_id: string;
+  holder_name: string;
+  ir_credit_available: number;
+  ir_paid_total: number;
 }
 
 export interface Holder {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Wallet,
   TrendingUp,
@@ -11,6 +11,8 @@ import {
   Target,
   Percent,
   Sparkles,
+  Receipt,
+  AlertTriangle,
 } from 'lucide-react';
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { LineChartCard } from '@/components/dashboard/line-chart-card';
@@ -20,37 +22,59 @@ import { Button } from '@/components/ui/button';
 import { AiAnalysisDialog } from '@/components/shared/ai-analysis-dialog';
 import { useDashboardData, computeKpis, filterByHolder } from '@/lib/hooks/use-dashboard-data';
 import { buildPortfolioAnalysisPrompt } from '@/lib/ai/prompt-builder';
+import { getIrCreditSummary } from '@/lib/supabase/queries';
 import { formatBRL, formatPct } from '@/lib/utils';
 import {
   mostProfitableAssets,
   overallStats,
   mostProfitableDeltaBands,
-  bestExpirationWeekdays,
-  bestStrikeDistanceBands,
+  bestOpeningWeekdays,
+  bestHoldingPeriods,
 } from '@/lib/learning/statistics';
+import type { IrCreditSummary } from '@/lib/types/database';
 
 export default function DashboardPage() {
-  const { operations: allOperations, equityHistory: allEquityHistory, holders, loading, error } = useDashboardData();
+  const { operations: allOperations, holders, strategySettings, loading, error } = useDashboardData();
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
   const [holderFilter, setHolderFilter] = useState<string | null>(null); // null = todos
+  const [irCredit, setIrCredit] = useState<IrCreditSummary[]>([]);
 
-  const { operations, equityHistory } = filterByHolder(allOperations, allEquityHistory, holderFilter);
-  const kpis = computeKpis(operations, equityHistory);
+  useEffect(() => {
+    getIrCreditSummary()
+      .then(setIrCredit)
+      .catch(() => setIrCredit([]));
+  }, []);
 
-  const equitySeries = equityHistory.map((e) => ({ date: e.recorded_at, value: e.total_equity }));
-  const premiumSeries = equityHistory.map((e) => ({ date: e.recorded_at, value: e.cumulative_premiums }));
-  const profitSeries = equityHistory.map((e) => ({ date: e.recorded_at, value: e.cumulative_profit }));
+  const { operations } = filterByHolder(allOperations, holderFilter);
+  const kpis = computeKpis(operations, strategySettings);
 
-  const latestEquity = equityHistory[equityHistory.length - 1];
-  const equityCompositionData = latestEquity
-    ? [
-        { name: 'Comprometido', value: latestEquity.committed_capital, color: 'var(--info)' },
-        { name: 'Caixa livre', value: latestEquity.free_cash, color: 'var(--accent)' },
-      ]
-    : [];
+  const closedChronological = [...operations]
+    .filter((o) => o.status !== 'aberta' && o.net_profit !== null && o.closed_at)
+    .sort((a, b) => new Date(a.closed_at as string).getTime() - new Date(b.closed_at as string).getTime());
 
-  const exercisedCount = operations.filter((o) => o.exercised).length;
-  const nonExercisedCount = operations.filter((o) => o.status !== 'aberta' && !o.exercised).length;
+  const premiumSeries = closedChronological.reduce<{ date: string; value: number }[]>((acc, o) => {
+    const previous = acc.length > 0 ? acc[acc.length - 1].value : 0;
+    acc.push({ date: (o.closed_at as string).slice(0, 10), value: previous + o.premium_received });
+    return acc;
+  }, []);
+
+  // Evolução do Lucro reflete sempre o LUCRO LÍQUIDO acumulado (já com IR descontado).
+  const profitSeries = closedChronological.reduce<{ date: string; value: number }[]>((acc, o) => {
+    const previous = acc.length > 0 ? acc[acc.length - 1].value : 0;
+    acc.push({ date: (o.closed_at as string).slice(0, 10), value: previous + (o.net_profit ?? 0) });
+    return acc;
+  }, []);
+
+  const equityCompositionData =
+    kpis.freeCash !== null
+      ? [
+          { name: 'Comprometido', value: kpis.committedCapital, color: 'var(--info)' },
+          { name: 'Caixa livre', value: kpis.freeCash, color: 'var(--accent)' },
+        ]
+      : [];
+
+  const exercisedCount = operations.filter((o) => o.exercised_label === 'Sim').length;
+  const nonExercisedCount = operations.filter((o) => o.status !== 'aberta' && o.exercised_label === 'Não').length;
 
   const statusDistribution = ['aberta', 'encerrada', 'rolada', 'exercida'].map((status) => ({
     name: status.charAt(0).toUpperCase() + status.slice(1),
@@ -73,10 +97,8 @@ export default function DashboardPage() {
   const deltaBands = mostProfitableDeltaBands(operations)
     .slice(0, 6)
     .map((d) => ({ label: d.label, value: d.avgProfit }));
-  const weekdayStats = bestExpirationWeekdays(operations).map((w) => ({ label: w.weekday.slice(0, 3), value: w.avgProfit }));
-  const strikeDistanceBands = bestStrikeDistanceBands(operations)
-    .slice(0, 6)
-    .map((s) => ({ label: s.label, value: s.avgProfit }));
+  const openingWeekdayStats = bestOpeningWeekdays(operations).map((w) => ({ label: w.weekday.slice(0, 3), value: w.avgProfit }));
+  const holdingPeriodStats = bestHoldingPeriods(operations).map((h) => ({ label: h.label, value: h.avgProfit }));
 
   const monthlyResult = Object.entries(
     operations
@@ -87,6 +109,13 @@ export default function DashboardPage() {
         return acc;
       }, {})
   ).map(([label, value]) => ({ label, value }));
+
+  const currentHolderIrCredit = holderFilter
+    ? irCredit.find((c) => c.holder_id === holderFilter)
+    : irCredit.reduce<IrCreditSummary | null>((acc, c) => {
+        if (!acc) return { ...c };
+        return { ...acc, ir_credit_available: acc.ir_credit_available + c.ir_credit_available, ir_paid_total: acc.ir_paid_total + c.ir_paid_total };
+      }, null);
 
   return (
     <div className="flex flex-col gap-6">
@@ -139,16 +168,38 @@ export default function DashboardPage() {
 
       {!loading && operations.length === 0 && !error && (
         <div className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted-foreground">
-          Nenhuma operação registrada ainda. Importe um print em <strong className="text-foreground">Oportunidades</strong> ou registre uma operação manualmente para começar a ver dados aqui.
+          Nenhuma operação registrada ainda. Registre uma operação em <strong className="text-foreground">Operações</strong> para começar a ver dados aqui.
+        </div>
+      )}
+
+      {kpis.currentEquity === null && !loading && (
+        <div className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-muted px-4 py-3 text-sm text-warning">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            Nenhum caixa disponível informado. Patrimônio, Caixa Livre e Capital Comprometido dependem do campo{' '}
+            <strong>Caixa disponível</strong> em Configurações → Estratégia — atualize-o sempre que fizer uma nova
+            operação, para que estes números reflitam a realidade.
+          </div>
+        </div>
+      )}
+
+      {currentHolderIrCredit && currentHolderIrCredit.ir_credit_available > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-info/25 bg-info/10 px-4 py-3 text-sm text-info">
+          <Receipt className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            Você tem <strong>{formatBRL(currentHolderIrCredit.ir_credit_available)}</strong> em crédito de IR
+            acumulado de operações com prejuízo — pode ser usado para abater o IR de ganhos futuros na sua
+            declaração (esse abatimento não é feito automaticamente pelo sistema).
+          </div>
         </div>
       )}
 
       {/* KPIs superiores */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <KpiCard label="Patrimônio Atual" value={formatBRL(kpis.currentEquity)} icon={Wallet} accent="accent" />
-        <KpiCard label="Patrimônio Inicial" value={formatBRL(kpis.initialEquity)} icon={Wallet} />
-        <KpiCard label="Lucro Total" value={formatBRL(kpis.totalProfit)} icon={TrendingUp} accent={kpis.totalProfit >= 0 ? 'accent' : 'danger'} />
-        <KpiCard label="Prêmios Recebidos" value={formatBRL(kpis.totalPremiums)} icon={Coins} accent="accent" />
+        <KpiCard label="Lucro Total (líquido)" value={formatBRL(kpis.totalProfit)} icon={TrendingUp} accent={kpis.totalProfit >= 0 ? 'accent' : 'danger'} />
+        <KpiCard label="Prêmios Recebidos (bruto)" value={formatBRL(kpis.totalPremiums)} icon={Coins} accent="accent" />
+        <KpiCard label="Total de IR Pago" value={formatBRL(kpis.totalIrPaid)} icon={Receipt} accent="danger" />
         <KpiCard label="Caixa Livre" value={formatBRL(kpis.freeCash)} icon={PiggyBank} />
         <KpiCard label="Capital Comprometido" value={formatBRL(kpis.committedCapital)} icon={Lock} />
         <KpiCard label="Operações Abertas" value={String(kpis.openOperationsCount)} icon={Layers} />
@@ -157,10 +208,10 @@ export default function DashboardPage() {
 
       {/* Gráficos de evolução */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <LineChartCard title="Evolução Patrimonial" data={equitySeries} />
-        <LineChartCard title="Evolução dos Prêmios" data={premiumSeries} color="var(--info)" />
-        <LineChartCard title="Evolução do Lucro" data={profitSeries} color="var(--accent)" />
-        <PieChartCard title="Patrimônio × Caixa" data={equityCompositionData} emptyLabel="Sem snapshot de patrimônio ainda." />
+        <LineChartCard title="Evolução dos Prêmios (bruto)" data={premiumSeries} color="var(--info)" />
+        <LineChartCard title="Evolução do Lucro (líquido, pós-IR)" data={profitSeries} color="var(--accent)" />
+        <PieChartCard title="Patrimônio × Caixa" data={equityCompositionData} emptyLabel="Informe o Caixa disponível em Configurações." />
+        <PieChartCard title="Distribuição das Operações" data={statusDistribution} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -178,16 +229,13 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <PieChartCard title="Distribuição das Operações" data={statusDistribution} />
-        <PieChartCard
-          title="Exercidas × Não Exercidas"
-          data={[
-            { name: 'Exercidas', value: exercisedCount, color: 'var(--danger)' },
-            { name: 'Não Exercidas', value: nonExercisedCount, color: 'var(--accent)' },
-          ]}
-        />
-      </div>
+      <PieChartCard
+        title="Exercidas × Não Exercidas"
+        data={[
+          { name: 'Exercidas', value: exercisedCount, color: 'var(--danger)' },
+          { name: 'Não Exercidas', value: nonExercisedCount, color: 'var(--accent)' },
+        ]}
+      />
 
       {/* Aprendizado: estatísticas agregadas do histórico real (só operações fechadas) */}
       <div>
@@ -206,7 +254,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <KpiCard label="Prêmio Médio" value={formatBRL(learning.averagePremium)} icon={Coins} />
             <KpiCard label="Taxa de Exercício" value={formatPct(learning.exerciseRatePct, 1)} icon={Percent} />
-            <KpiCard label="Taxa de Sucesso" value={formatPct(learning.successRatePct, 1)} icon={Target} accent="accent" />
+            <KpiCard label="Taxa de Sucesso (fechadas)" value={formatPct(learning.successRatePct, 1)} icon={Target} accent="accent" />
             <KpiCard
               label="Lucro Médio"
               value={formatBRL(learning.averageProfit)}
@@ -217,37 +265,27 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <BarChartCard
-              title="Delta Mais Lucrativo (lucro médio por faixa)"
+              title="Melhor Delta (lucro médio por faixa)"
               data={deltaBands}
               layout="vertical"
               colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
               emptyLabel="Sem operações com Delta registrado ainda."
             />
             <BarChartCard
-              title="Melhor Vencimento (lucro médio por dia da semana)"
-              data={weekdayStats}
+              title="Melhor Dia da Semana para Operar (lucro médio)"
+              data={openingWeekdayStats}
               layout="horizontal"
               colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
             />
           </div>
 
           <BarChartCard
-            title="Melhores Strikes (lucro médio por distância % OTM)"
-            data={strikeDistanceBands}
+            title="Melhor Prazo até o Vencimento (lucro médio por faixa de dias)"
+            data={holdingPeriodStats}
             layout="horizontal"
             colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
-            emptyLabel="Sem operações com Cotação de referência registrada ainda."
           />
         </>
-      )}
-
-      {equityHistory.length < 2 && (
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/50 px-4 py-2.5">
-          <Percent className="h-3.5 w-3.5 text-faint-foreground" />
-          <p className="text-xs text-faint-foreground">
-            Os gráficos de evolução ganham forma assim que houver pelo menos 2 registros de patrimônio para este titular (equity_snapshots).
-          </p>
-        </div>
       )}
 
       <AiAnalysisDialog

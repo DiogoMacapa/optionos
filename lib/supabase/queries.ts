@@ -14,6 +14,7 @@ import type {
   NamedStrategy,
   EquitySnapshot,
   CommissionSummary,
+  IrCreditSummary,
   CalculatorRow,
   CalculatorSettings,
 } from '@/lib/types/database';
@@ -433,6 +434,12 @@ export async function listEquitySnapshots(holderId?: string): Promise<EquitySnap
 
 export async function getCommissionSummary(): Promise<CommissionSummary[]> {
   const { data, error } = await supabase.from('commission_summary').select('*');
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getIrCreditSummary(): Promise<IrCreditSummary[]> {
+  const { data, error } = await supabase.from('ir_credit_summary').select('*');
   if (error) throw error;
   return data ?? [];
 }

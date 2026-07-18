@@ -122,16 +122,16 @@ export interface WeekdayStat {
 const WEEKDAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 /**
- * Melhor vencimento: agrupa pelo dia da semana do vencimento (mais
- * acionável do que a data exata, que nunca se repete) e calcula o
- * lucro médio por dia da semana.
+ * Melhor dia da semana para ABRIR a operação (não o vencimento — o
+ * usuário quer saber em que dia ele tende a conseguir os melhores
+ * prêmios/resultados quando decide vender).
  */
-export function bestExpirationWeekdays(operations: Operation[]): WeekdayStat[] {
+export function bestOpeningWeekdays(operations: Operation[]): WeekdayStat[] {
   const closed = closedOperations(operations);
   const byWeekday = new Map<number, { total: number; count: number }>();
 
   for (const op of closed) {
-    const weekday = new Date(op.expiration + 'T00:00:00').getDay();
+    const weekday = new Date(op.opened_at.slice(0, 10) + 'T00:00:00').getDay();
     const entry = byWeekday.get(weekday) ?? { total: 0, count: 0 };
     entry.total += op.net_profit ?? 0;
     entry.count += 1;
@@ -147,44 +147,47 @@ export function bestExpirationWeekdays(operations: Operation[]): WeekdayStat[] {
     .sort((a, b) => b.avgProfit - a.avgProfit);
 }
 
-export interface StrikeDistanceBandStat {
-  label: string; // ex: "5% – 10% OTM"
+export interface HoldingPeriodStat {
+  label: string; // ex: "1–3 dias"
   avgProfit: number;
   operationsCount: number;
 }
 
-const DISTANCE_BAND_SIZE = 0.05; // 5 pontos percentuais
-
 /**
- * Melhores strikes: como strike em si não é comparável entre ativos
- * de preços diferentes, usa a Distância do strike (% OTM em relação
- * à cotação no momento do registro) agrupada em faixas de 5%.
+ * Melhor prazo: quantos dias entre abertura e vencimento rendem mais
+ * prêmio/lucro em média. Agrupa em faixas (1-3, 4-7, 8-14, 15-21, 22+)
+ * em vez de dia exato, que teria pouquíssimas repetições.
  */
-export function bestStrikeDistanceBands(operations: Operation[]): StrikeDistanceBandStat[] {
-  const closed = closedOperations(operations).filter(
-    (o) => o.reference_quote !== null && o.reference_quote !== undefined && o.reference_quote > 0
-  );
-  const byBand = new Map<number, { total: number; count: number }>();
+export function bestHoldingPeriods(operations: Operation[]): HoldingPeriodStat[] {
+  const closed = closedOperations(operations);
+  const bands: { label: string; min: number; max: number }[] = [
+    { label: '1–3 dias', min: 1, max: 3 },
+    { label: '4–7 dias', min: 4, max: 7 },
+    { label: '8–14 dias', min: 8, max: 14 },
+    { label: '15–21 dias', min: 15, max: 21 },
+    { label: '22+ dias', min: 22, max: Infinity },
+  ];
+
+  const byBand = new Map<string, { total: number; count: number }>();
 
   for (const op of closed) {
-    const quote = op.reference_quote as number;
-    const distance = (quote - op.strike) / quote; // positivo = OTM (strike abaixo da cotação, para PUT)
-    const bandIndex = Math.floor(distance / DISTANCE_BAND_SIZE);
-    const entry = byBand.get(bandIndex) ?? { total: 0, count: 0 };
+    const opened = new Date(op.opened_at.slice(0, 10) + 'T00:00:00');
+    const expiration = new Date(op.expiration + 'T00:00:00');
+    const days = Math.round((expiration.getTime() - opened.getTime()) / 86400000);
+    const band = bands.find((b) => days >= b.min && days <= b.max);
+    if (!band) continue;
+    const entry = byBand.get(band.label) ?? { total: 0, count: 0 };
     entry.total += op.net_profit ?? 0;
     entry.count += 1;
-    byBand.set(bandIndex, entry);
+    byBand.set(band.label, entry);
   }
 
-  return Array.from(byBand.entries())
-    .map(([bandIndex, { total, count }]) => {
-      const low = bandIndex * DISTANCE_BAND_SIZE * 100;
-      const high = low + DISTANCE_BAND_SIZE * 100;
-      return {
-        label: `${low.toFixed(0)}% – ${high.toFixed(0)}% OTM`,
-        avgProfit: count > 0 ? total / count : 0,
-        operationsCount: count,
-      };
+  return bands
+    .filter((b) => byBand.has(b.label))
+    .map((b) => {
+      const { total, count } = byBand.get(b.label)!;
+      return { label: b.label, avgProfit: count > 0 ? total / count : 0, operationsCount: count };
     })
     .sort((a, b) => b.avgProfit - a.avgProfit);
 }
+
