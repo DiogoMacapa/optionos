@@ -304,6 +304,7 @@ export async function updateOperationFields(
       | 'option_symbol'
       | 'exercised_label'
       | 'counts_toward_equity'
+      | 'delta_at_open'
     >
   >
 ): Promise<Operation> {

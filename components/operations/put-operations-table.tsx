@@ -272,6 +272,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, onChang
             <Th>Prêmio Venda</Th>
             <Th>Total Prêmio</Th>
             <Th>Strike</Th>
+            <Th>Delta</Th>
             <Th>Distância do strike</Th>
             <Th>Teto</Th>
             <Th>Spread</Th>
@@ -449,6 +450,18 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, onChang
                       {formatNumber(r.strike, 2)}
                     </span>
                   )}
+                </Td>
+
+                {/* Delta — editável sempre, inclusive em operações já fechadas (preenchimento
+                    retroativo). Usado só para estatística de Aprendizado, não afeta cálculos. */}
+                <Td width={70}>
+                  <InlineField
+                    key={`delta-${op.id}-${op.delta_at_open}`}
+                    initialValue={op.delta_at_open !== null && op.delta_at_open !== undefined ? String(op.delta_at_open).replace('.', ',') : ''}
+                    onCommit={(v) => saveField(op, { delta_at_open: v.trim() === '' ? null : parseBRNumber(v) })}
+                    placeholder="0,15"
+                    width={56}
+                  />
                 </Td>
 
                 {/* Distância do strike — calculado */}

@@ -254,6 +254,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, onChan
             <Th>Prêmio Venda</Th>
             <Th>Total Prêmio</Th>
             <Th>Strike</Th>
+            <Th>Delta</Th>
             <Th>Spread</Th>
             <Th>PM</Th>
             <Th>Lucro/Prejuízo</Th>
@@ -368,6 +369,15 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, onChan
                   ) : (
                     <span className="font-tabular text-[11.5px] text-muted-foreground">{formatNumber(r.strike, 2)}</span>
                   )}
+                </Td>
+                <Td width={70}>
+                  <InlineField
+                    key={`delta-${op.id}-${op.delta_at_open}`}
+                    initialValue={op.delta_at_open !== null && op.delta_at_open !== undefined ? String(op.delta_at_open).replace('.', ',') : ''}
+                    onCommit={(v) => saveField(op, { delta_at_open: v.trim() === '' ? null : parseBRNumber(v) })}
+                    placeholder="0,15"
+                    width={56}
+                  />
                 </Td>
                 <Td>
                   <span className="font-tabular text-[11.5px] text-accent">{r.spread !== null ? formatNumber(r.spread, 2) : '—'}</span>
