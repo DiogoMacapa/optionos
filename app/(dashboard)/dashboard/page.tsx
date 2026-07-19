@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Wallet,
   TrendingUp,
@@ -23,7 +23,6 @@ import { Button } from '@/components/ui/button';
 import { AiAnalysisDialog } from '@/components/shared/ai-analysis-dialog';
 import { useDashboardData, computeKpis, filterByHolder } from '@/lib/hooks/use-dashboard-data';
 import { buildPortfolioAnalysisPrompt } from '@/lib/ai/prompt-builder';
-import { getIrCreditSummary } from '@/lib/supabase/queries';
 import { formatBRL, formatPct } from '@/lib/utils';
 import {
   mostProfitableAssets,
@@ -32,19 +31,11 @@ import {
   bestOpeningWeekdays,
   bestHoldingPeriods,
 } from '@/lib/learning/statistics';
-import type { IrCreditSummary } from '@/lib/types/database';
 
 export default function DashboardPage() {
   const { operations: allOperations, holders, strategySettings, withdrawals: allWithdrawals, loading, error } = useDashboardData();
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
   const [holderFilter, setHolderFilter] = useState<string | null>(null); // null = todos
-  const [irCredit, setIrCredit] = useState<IrCreditSummary[]>([]);
-
-  useEffect(() => {
-    getIrCreditSummary()
-      .then(setIrCredit)
-      .catch(() => setIrCredit([]));
-  }, []);
 
   const { operations, withdrawals } = filterByHolder(allOperations, holderFilter, allWithdrawals);
   const kpis = computeKpis(operations, strategySettings, withdrawals);
@@ -134,17 +125,6 @@ export default function DashboardPage() {
       }, {})
   ).map(([label, value]) => ({ label, value }));
 
-  const currentHolderIrCredit = holderFilter
-    ? irCredit.find((c) => c.holder_id === holderFilter) ?? null
-    : irCredit.reduce<IrCreditSummary | null>((acc, c) => {
-        if (!acc) return { ...c };
-        return {
-          ...acc,
-          ir_credit_generated_total: acc.ir_credit_generated_total + c.ir_credit_generated_total,
-          ir_credit_used_total: acc.ir_credit_used_total + c.ir_credit_used_total,
-        };
-      }, null);
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -212,7 +192,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <IrCreditPanel holderId={holderFilter} summary={currentHolderIrCredit} />
+      <IrCreditPanel irLossToOffset={strategySettings?.ir_loss_to_offset ?? 0} />
 
       {/* KPIs superiores */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

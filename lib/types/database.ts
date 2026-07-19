@@ -107,6 +107,7 @@ export interface StrategySettings {
   available_cash: number | null;
   emergency_reserve: number;
   initial_equity: number | null;
+  ir_loss_to_offset: number;
   max_concentration_pct: number | null;
   min_days_to_expiration: number | null;
   max_days_to_expiration: number | null;
@@ -156,7 +157,6 @@ export interface Operation {
   option_symbol: string | null;
   exercised_label: 'Sim' | 'Não' | 'Rolagem' | null;
   counts_toward_equity: boolean;
-  ir_credit_generated: number | null;
 
   premium_received: number;
   delta_at_open: number | null;
@@ -211,22 +211,6 @@ export interface CommissionSummary {
   commission_pct: number;
   commission_earned: number;
   commission_withdrawn: number;
-}
-
-export interface IrCreditSummary {
-  holder_id: string;
-  holder_name: string;
-  ir_credit_generated_total: number;
-  ir_credit_used_total: number;
-}
-
-export interface IrCreditUsage {
-  id: string;
-  holder_id: string;
-  amount: number;
-  used_at: string;
-  notes: string | null;
-  created_at: string;
 }
 
 export interface Holder {

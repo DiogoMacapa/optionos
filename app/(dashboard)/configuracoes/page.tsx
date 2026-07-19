@@ -63,6 +63,7 @@ export default function ConfiguracoesPage() {
           available_cash: s.available_cash === null ? '' : String(s.available_cash).replace('.', ','),
           emergency_reserve: String(s.emergency_reserve ?? 0).replace('.', ','),
           initial_equity: s.initial_equity === null ? '' : String(s.initial_equity).replace('.', ','),
+          ir_loss_to_offset: String(s.ir_loss_to_offset ?? 0).replace('.', ','),
           max_concentration_pct: s.max_concentration_pct === null ? '' : String(s.max_concentration_pct).replace('.', ','),
           min_days_to_expiration: s.min_days_to_expiration === null ? '' : String(s.min_days_to_expiration),
           max_days_to_expiration: s.max_days_to_expiration === null ? '' : String(s.max_days_to_expiration),
@@ -108,6 +109,7 @@ export default function ConfiguracoesPage() {
         available_cash: settingsText.available_cash?.trim() ? parseBRNumber(settingsText.available_cash) : null,
         emergency_reserve: parseBRNumber(settingsText.emergency_reserve ?? '0'),
         initial_equity: settingsText.initial_equity?.trim() ? parseBRNumber(settingsText.initial_equity) : null,
+        ir_loss_to_offset: parseBRNumber(settingsText.ir_loss_to_offset ?? '0'),
         max_concentration_pct: settingsText.max_concentration_pct?.trim()
           ? parseBRNumber(settingsText.max_concentration_pct)
           : null,
@@ -254,6 +256,18 @@ export default function ConfiguracoesPage() {
               />
               <p className="text-[11px] text-faint-foreground">
                 Dinheiro no cofrinho do banco — soma ao Patrimônio, mas você não opera com ele.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label>Prejuízo a compensar (IR) (R$)</Label>
+              <Input
+                className="font-tabular"
+                value={settingsText.ir_loss_to_offset ?? ''}
+                onChange={(e) => setSettingsText((t) => ({ ...t, ir_loss_to_offset: e.target.value }))}
+              />
+              <p className="text-[11px] text-faint-foreground">
+                Saldo de prejuízo ainda não compensado, olhando seu app de IR — atualize manualmente. Não soma
+                ao Patrimônio; é só um indicador de referência no Dashboard.
               </p>
             </div>
             <div className="space-y-1">
