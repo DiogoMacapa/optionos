@@ -57,19 +57,17 @@ export default function DashboardPage() {
     return acc;
   }, []);
 
-  // Evolução Patrimonial: patrimônio inicial + lucro líquido acumulado, com
-  // saques subtraídos na data em que ocorreram — intercala operações fechadas
-  // e saques em ordem cronológica. Só operações com counts_toward_equity=true
-  // entram aqui (evita contar de novo um histórico já embutido no Patrimônio
-  // Inicial informado pelo usuário).
+  // Evolução Patrimonial: mostra a trajetória completa (histórico + operações
+  // novas), começando do Patrimônio Inicial informado. Diferente do KPI
+  // "Patrimônio Atual" (que só soma operações com counts_toward_equity=true,
+  // para não contar de novo um histórico já embutido no valor informado) —
+  // aqui é só visualização da trajetória, o usuário quer ver a curva completa.
   const equitySeries = (() => {
     const initial = kpis.initialEquity;
     if (initial === null) return [];
     type Event = { date: string; delta: number };
     const events: Event[] = [
-      ...closedChronological
-        .filter((o) => o.counts_toward_equity)
-        .map((o) => ({ date: (o.closed_at as string).slice(0, 10), delta: o.net_profit ?? 0 })),
+      ...closedChronological.map((o) => ({ date: (o.closed_at as string).slice(0, 10), delta: o.net_profit ?? 0 })),
       ...withdrawals.map((w) => ({ date: w.withdrawn_at, delta: -w.amount })),
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
