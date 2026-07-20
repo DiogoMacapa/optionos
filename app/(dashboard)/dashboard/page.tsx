@@ -119,11 +119,18 @@ export default function DashboardPage() {
     operations
       .filter((o) => o.closed_at)
       .reduce<Record<string, number>>((acc, o) => {
-        const month = new Date(o.closed_at as string).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
-        acc[month] = (acc[month] || 0) + (o.net_profit || 0);
+        const d = new Date(o.closed_at as string);
+        const sortKey = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`; // ex: "2026-03" — ordena corretamente
+        acc[sortKey] = (acc[sortKey] || 0) + (o.net_profit || 0);
         return acc;
       }, {})
-  ).map(([label, value]) => ({ label, value }));
+  )
+    .sort(([a], [b]) => a.localeCompare(b)) // mais antigo primeiro (esquerda) → mais recente por último (direita)
+    .map(([sortKey, value]) => {
+      const [year, month] = sortKey.split('-').map(Number);
+      const label = new Date(year, month, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+      return { label, value };
+    });
 
   return (
     <div className="flex flex-col gap-6">
