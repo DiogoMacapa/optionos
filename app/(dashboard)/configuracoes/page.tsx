@@ -36,6 +36,7 @@ export default function ConfiguracoesPage() {
   const [settings, setSettings] = useState<StrategySettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [connectionOk, setConnectionOk] = useState<boolean | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -102,6 +103,7 @@ export default function ConfiguracoesPage() {
     if (!settings) return;
     setSaving(true);
     setSaved(false);
+    setSaveError(null);
     try {
       const updated = await updateStrategySettings(settings.id, {
         max_delta: parseBRNumber(settingsText.max_delta ?? '0'),
@@ -123,6 +125,8 @@ export default function ConfiguracoesPage() {
       setSettings(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Erro ao salvar. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -294,10 +298,11 @@ export default function ConfiguracoesPage() {
                 onChange={(e) => setSettingsText((t) => ({ ...t, max_days_to_expiration: e.target.value }))}
               />
             </div>
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-2 flex items-center gap-3">
               <Button size="sm" onClick={handleSaveSettings} disabled={saving}>
                 {saved ? 'Salvo ✓' : saving ? 'Salvando…' : 'Salvar estratégia'}
               </Button>
+              {saveError && <span className="text-xs text-danger">Erro ao salvar: {saveError}</span>}
             </div>
           </CardContent>
         </Card>
