@@ -228,8 +228,10 @@ export default function CalculadorasPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
-              const r = calcRow(row, cash);
+            {rows
+              .map((row) => ({ row, r: calcRow(row, cash) }))
+              .sort((a, b) => b.r.totalPremium - a.r.totalPremium)
+              .map(({ row, r }) => {
               return (
                 <tr key={row.id} className="border-t border-border">
                   <Td>
