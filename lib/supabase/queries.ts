@@ -11,6 +11,7 @@ import type {
   Holder,
   StockPosition,
   Withdrawal,
+  CommissionEntry,
   NamedStrategy,
   EquitySnapshot,
   CommissionSummary,
@@ -567,6 +568,35 @@ export async function createWithdrawal(input: {
 
 export async function deleteWithdrawal(id: string): Promise<void> {
   const { error } = await supabase.from('withdrawals').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function listCommissionEntries(): Promise<CommissionEntry[]> {
+  const { data, error } = await supabase.from('commission_entries').select('*').order('received_at', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createCommissionEntry(input: {
+  amount: number;
+  receivedAt?: string;
+  notes?: string | null;
+}): Promise<CommissionEntry> {
+  const { data, error } = await supabase
+    .from('commission_entries')
+    .insert({
+      amount: input.amount,
+      received_at: input.receivedAt ?? new Date().toISOString().slice(0, 10),
+      notes: input.notes ?? null,
+    })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCommissionEntry(id: string): Promise<void> {
+  const { error } = await supabase.from('commission_entries').delete().eq('id', id);
   if (error) throw error;
 }
 

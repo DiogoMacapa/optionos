@@ -13,12 +13,14 @@ import {
   Sparkles,
   Receipt,
   AlertTriangle,
+  Handshake,
 } from 'lucide-react';
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { LineChartCard } from '@/components/dashboard/line-chart-card';
 import { PieChartCard } from '@/components/dashboard/pie-chart-card';
 import { BarChartCard } from '@/components/dashboard/bar-chart-card';
 import { IrCreditPanel } from '@/components/dashboard/ir-credit-panel';
+import { CommissionPanel } from '@/components/dashboard/commission-panel';
 import { Button } from '@/components/ui/button';
 import { AiAnalysisDialog } from '@/components/shared/ai-analysis-dialog';
 import { useDashboardData, computeKpis, filterByHolder } from '@/lib/hooks/use-dashboard-data';
@@ -33,12 +35,21 @@ import {
 } from '@/lib/learning/statistics';
 
 export default function DashboardPage() {
-  const { operations: allOperations, holders, strategySettings, withdrawals: allWithdrawals, loading, error } = useDashboardData();
+  const {
+    operations: allOperations,
+    holders,
+    strategySettings,
+    withdrawals: allWithdrawals,
+    commissionEntries,
+    loading,
+    error,
+    refetch: refetchDashboard,
+  } = useDashboardData();
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
   const [holderFilter, setHolderFilter] = useState<string | null>(null); // null = todos
 
   const { operations, withdrawals } = filterByHolder(allOperations, holderFilter, allWithdrawals);
-  const kpis = computeKpis(operations, strategySettings, withdrawals);
+  const kpis = computeKpis(operations, strategySettings, withdrawals, commissionEntries);
 
   const closedChronological = [...operations]
     .filter((o) => o.status !== 'aberta' && o.net_profit !== null && o.closed_at)
@@ -69,6 +80,7 @@ export default function DashboardPage() {
     const events: Event[] = [
       ...closedChronological.map((o) => ({ date: (o.closed_at as string).slice(0, 10), delta: o.net_profit ?? 0 })),
       ...withdrawals.map((w) => ({ date: w.withdrawn_at, delta: -w.amount })),
+      ...commissionEntries.map((c) => ({ date: c.received_at, delta: c.amount })),
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     return events.reduce<{ date: string; value: number }[]>((acc, ev) => {
@@ -77,6 +89,12 @@ export default function DashboardPage() {
       return acc;
     }, []);
   })();
+
+  const commissionSeries = commissionEntries.reduce<{ date: string; value: number }[]>((acc, c) => {
+    const previous = acc.length > 0 ? acc[acc.length - 1].value : 0;
+    acc.push({ date: c.received_at, value: previous + c.amount });
+    return acc;
+  }, []);
 
   const equityCompositionData =
     kpis.freeCash !== null
@@ -199,6 +217,8 @@ export default function DashboardPage() {
 
       <IrCreditPanel irLossToOffset={strategySettings?.ir_loss_to_offset ?? 0} />
 
+      <CommissionPanel entries={commissionEntries} onChanged={refetchDashboard} />
+
       {/* KPIs superiores */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <KpiCard label="Patrimônio Atual" value={formatBRL(kpis.currentEquity)} icon={Wallet} accent="accent" />
@@ -207,6 +227,7 @@ export default function DashboardPage() {
         <KpiCard label="Prêmios Recebidos (bruto)" value={formatBRL(kpis.totalPremiums)} icon={Coins} accent="accent" />
         <KpiCard label="Total de IR Pago" value={formatBRL(kpis.totalIrPaid)} icon={Receipt} accent="danger" />
         <KpiCard label="Total Sacado" value={formatBRL(kpis.totalWithdrawn)} icon={PiggyBank} />
+        <KpiCard label="Comissões Recebidas" value={formatBRL(kpis.totalCommissions)} icon={Handshake} accent="accent" />
         <KpiCard label="Caixa Livre" value={formatBRL(kpis.freeCash)} icon={PiggyBank} />
         <KpiCard label="Capital Comprometido" value={formatBRL(kpis.committedCapital)} icon={Lock} />
         <KpiCard label="Operações Abertas" value={String(kpis.openOperationsCount)} icon={Layers} />
@@ -218,6 +239,7 @@ export default function DashboardPage() {
         <LineChartCard title="Evolução Patrimonial" data={equitySeries} emptyLabel="Informe o Patrimônio Inicial em Configurações." />
         <LineChartCard title="Evolução dos Prêmios (bruto)" data={premiumSeries} color="var(--info)" />
         <LineChartCard title="Evolução do Lucro (líquido, pós-IR)" data={profitSeries} color="var(--accent)" />
+        <LineChartCard title="Evolução das Comissões" data={commissionSeries} color="var(--accent)" emptyLabel="Nenhuma comissão lançada ainda." />
         <PieChartCard title="Patrimônio × Caixa" data={equityCompositionData} emptyLabel="Informe o Patrimônio Inicial em Configurações." />
       </div>
 

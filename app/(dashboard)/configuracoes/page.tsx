@@ -1,38 +1,24 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Settings, Sliders, Database, CheckCircle2, XCircle, Users, Plus, Trash2, Pencil, Check, X } from 'lucide-react';
+import { Settings, Database, CheckCircle2, XCircle, Users, Plus, Trash2, Pencil, Check, X } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  getActiveScoreWeights,
-  updateScoreWeights,
   getStrategySettings,
   updateStrategySettings,
   listHolders,
   createHolder,
   updateHolder,
 } from '@/lib/supabase/queries';
-import type { ScoreWeights, StrategySettings, Holder } from '@/lib/types/database';
-
-type WeightKey = 'weight_delta' | 'weight_premium' | 'weight_strike_distance' | 'weight_liquidity' | 'weight_spread' | 'weight_history';
-
-const WEIGHT_LABELS: { key: WeightKey; label: string }[] = [
-  { key: 'weight_delta', label: 'Delta' },
-  { key: 'weight_premium', label: 'Prêmio' },
-  { key: 'weight_strike_distance', label: 'Distância do strike' },
-  { key: 'weight_liquidity', label: 'Liquidez' },
-  { key: 'weight_spread', label: 'Spread' },
-  { key: 'weight_history', label: 'Histórico' },
-];
+import type { StrategySettings, Holder } from '@/lib/types/database';
 
 import { parseBRNumber } from '@/lib/utils';
 
 export default function ConfiguracoesPage() {
-  const [weights, setWeights] = useState<ScoreWeights | null>(null);
   const [settings, setSettings] = useState<StrategySettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -42,7 +28,6 @@ export default function ConfiguracoesPage() {
 
   // Campos de texto locais (evita o bug de "0," virar "0" ao digitar em campo number-controlled)
   const [settingsText, setSettingsText] = useState<Record<string, string>>({});
-  const [weightsText, setWeightsText] = useState<Record<string, string>>({});
 
   // Titulares
   const [holders, setHolders] = useState<Holder[]>([]);
@@ -54,8 +39,7 @@ export default function ConfiguracoesPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [w, s, h] = await Promise.all([getActiveScoreWeights(), getStrategySettings(), listHolders()]);
-        setWeights(w);
+        const [s, h] = await Promise.all([getStrategySettings(), listHolders()]);
         setSettings(s);
         setHolders(h);
         setSettingsText({
@@ -69,9 +53,6 @@ export default function ConfiguracoesPage() {
           min_days_to_expiration: s.min_days_to_expiration === null ? '' : String(s.min_days_to_expiration),
           max_days_to_expiration: s.max_days_to_expiration === null ? '' : String(s.max_days_to_expiration),
         });
-        setWeightsText(
-          Object.fromEntries(WEIGHT_LABELS.map((wl) => [wl.key, String(w[wl.key]).replace('.', ',')]))
-        );
         setConnectionOk(true);
       } catch (err) {
         setConnectionOk(false);
@@ -79,25 +60,6 @@ export default function ConfiguracoesPage() {
       }
     })();
   }, []);
-
-  const totalWeight = WEIGHT_LABELS.reduce((sum, w) => sum + parseBRNumber(weightsText[w.key] ?? '0'), 0);
-
-  async function handleSaveWeights() {
-    if (!weights) return;
-    setSaving(true);
-    setSaved(false);
-    try {
-      const patch = Object.fromEntries(
-        WEIGHT_LABELS.map((w) => [w.key, parseBRNumber(weightsText[w.key] ?? '0')])
-      );
-      const updated = await updateScoreWeights(weights.id, patch);
-      setWeights(updated);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function handleSaveSettings() {
     if (!settings) return;
@@ -384,38 +346,6 @@ export default function ConfiguracoesPage() {
           </div>
         </CardContent>
       </Card>
-
-      {weights && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <Sliders className="h-4 w-4 text-accent" />
-              Pesos do Score
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {WEIGHT_LABELS.map((w) => (
-                <div key={w.key} className="space-y-1">
-                  <Label>{w.label}</Label>
-                  <Input
-                    className="font-tabular"
-                    value={weightsText[w.key] ?? ''}
-                    onChange={(e) => setWeightsText((t) => ({ ...t, [w.key]: e.target.value }))}
-                  />
-                </div>
-              ))}
-            </div>
-            <p className={`text-xs ${Math.abs(totalWeight - 1) > 0.01 ? 'text-warning' : 'text-faint-foreground'}`}>
-              Soma dos pesos: {totalWeight.toFixed(2)}{' '}
-              {Math.abs(totalWeight - 1) > 0.01 && '— idealmente deve somar 1.00 (o sistema normaliza automaticamente, mas fica mais fácil de calibrar assim).'}
-            </p>
-            <Button size="sm" onClick={handleSaveWeights} disabled={saving}>
-              {saved ? 'Salvo ✓' : saving ? 'Salvando…' : 'Salvar pesos'}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

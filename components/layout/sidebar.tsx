@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutGrid,
-  Target,
   Layers,
   Calculator,
   Settings,
@@ -14,7 +13,6 @@ import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutGrid },
-  { href: '/oportunidades', label: 'Oportunidades', icon: Target },
   { href: '/operacoes', label: 'Operações', icon: Layers },
   { href: '/calculadoras', label: 'Calculadoras', icon: Calculator },
   { href: '/configuracoes', label: 'Configurações', icon: Settings },

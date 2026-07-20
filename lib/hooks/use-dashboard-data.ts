@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import type { Operation, EquitySnapshot, Holder, StrategySettings, Withdrawal } from '@/lib/types/database';
+import type { Operation, EquitySnapshot, Holder, StrategySettings, Withdrawal, CommissionEntry } from '@/lib/types/database';
 
 export interface DashboardData {
   operations: Operation[];
@@ -10,8 +10,10 @@ export interface DashboardData {
   holders: Holder[];
   strategySettings: StrategySettings | null;
   withdrawals: Withdrawal[];
+  commissionEntries: CommissionEntry[];
   loading: boolean;
   error: string | null;
+  refetch: () => void;
 }
 
 export function useDashboardData(): DashboardData {
@@ -20,8 +22,12 @@ export function useDashboardData(): DashboardData {
   const [holders, setHolders] = useState<Holder[]>([]);
   const [strategySettings, setStrategySettings] = useState<StrategySettings | null>(null);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [commissionEntries, setCommissionEntries] = useState<CommissionEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refetchCounter, setRefetchCounter] = useState(0);
+
+  const refetch = useCallback(() => setRefetchCounter((c) => c + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,12 +36,13 @@ export function useDashboardData(): DashboardData {
       setLoading(true);
       setError(null);
 
-      const [opsRes, equityRes, holdersRes, settingsRes, withdrawalsRes] = await Promise.all([
+      const [opsRes, equityRes, holdersRes, settingsRes, withdrawalsRes, commissionRes] = await Promise.all([
         supabase.from('operations').select('*, asset:assets(*), holder:holders(*)').order('opened_at', { ascending: false }),
         supabase.from('equity_snapshots').select('*').order('recorded_at', { ascending: true }),
         supabase.from('holders').select('*').eq('active', true).order('is_self', { ascending: false }),
         supabase.from('strategy_settings').select('*').limit(1).single(),
         supabase.from('withdrawals').select('*'),
+        supabase.from('commission_entries').select('*').order('received_at', { ascending: true }),
       ]);
 
       if (cancelled) return;
@@ -62,6 +69,10 @@ export function useDashboardData(): DashboardData {
         setWithdrawals((withdrawalsRes.data ?? []) as Withdrawal[]);
       }
 
+      if (!commissionRes.error) {
+        setCommissionEntries((commissionRes.data ?? []) as CommissionEntry[]);
+      }
+
       setLoading(false);
     }
 
@@ -69,9 +80,9 @@ export function useDashboardData(): DashboardData {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refetchCounter]);
 
-  return { operations, equityHistory, holders, strategySettings, withdrawals, loading, error };
+  return { operations, equityHistory, holders, strategySettings, withdrawals, commissionEntries, loading, error, refetch };
 }
 
 // ------------------------------------------------------------
@@ -110,7 +121,12 @@ export function filterByHolder(
 // da primeira operação no sistema, e marca saques por operação
 // específica (withdrawals.operation_id) — o resto é automático.
 // ------------------------------------------------------------
-export function computeKpis(operations: Operation[], strategySettings: StrategySettings | null, withdrawals: Withdrawal[] = []) {
+export function computeKpis(
+  operations: Operation[],
+  strategySettings: StrategySettings | null,
+  withdrawals: Withdrawal[] = [],
+  commissionEntries: CommissionEntry[] = []
+) {
   const openOps = operations.filter((o) => o.status === 'aberta');
   const closedOps = operations.filter((o) => o.status !== 'aberta' && o.net_profit !== null);
 
@@ -122,6 +138,7 @@ export function computeKpis(operations: Operation[], strategySettings: StrategyS
   const totalIrPaid = operations.reduce((sum, o) => sum + (o.ir_amount && (o.gross_result ?? 0) > 0 ? o.ir_amount : 0), 0);
   const committedCapital = openOps.reduce((sum, o) => sum + (o.committed_capital || 0), 0);
   const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0);
+  const totalCommissions = commissionEntries.reduce((sum, c) => sum + c.amount, 0);
 
   const successCount = closedOps.filter((o) => (o.net_profit || 0) > 0).length;
   const successRate = closedOps.length > 0 ? (successCount / closedOps.length) * 100 : 0;
@@ -140,7 +157,8 @@ export function computeKpis(operations: Operation[], strategySettings: StrategyS
     .reduce((sum, o) => sum + (o.net_profit || 0), 0);
 
   // Caixa disponível hoje: automático, sem depender de atualização manual.
-  const cashToday = initialEquity !== null ? initialEquity + equityImpactingProfit - totalWithdrawn : null;
+  // Comissões entram como caixa recebido, somando junto do lucro das operações.
+  const cashToday = initialEquity !== null ? initialEquity + equityImpactingProfit + totalCommissions - totalWithdrawn : null;
 
   const freeCash = cashToday !== null ? Math.max(0, cashToday - committedCapital) : null;
   const currentEquity = cashToday !== null ? cashToday + emergencyReserve : null;
@@ -152,6 +170,7 @@ export function computeKpis(operations: Operation[], strategySettings: StrategyS
     totalPremiums,
     totalIrPaid,
     totalWithdrawn,
+    totalCommissions,
     freeCash,
     committedCapital,
     emergencyReserve,

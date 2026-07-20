@@ -250,6 +250,14 @@ export interface Withdrawal {
   holder?: Holder;
 }
 
+export interface CommissionEntry {
+  id: string;
+  amount: number;
+  received_at: string;
+  notes: string | null;
+  created_at: string;
+}
+
 export interface NamedStrategy {
   id: string;
   name: string;

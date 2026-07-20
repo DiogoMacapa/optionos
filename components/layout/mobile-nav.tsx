@@ -2,12 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutGrid, Target, Layers, Calculator, Settings } from 'lucide-react';
+import { LayoutGrid, Layers, Calculator, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Painel', icon: LayoutGrid },
-  { href: '/oportunidades', label: 'Oport.', icon: Target },
   { href: '/operacoes', label: 'Operações', icon: Layers },
   { href: '/calculadoras', label: 'Calc.', icon: Calculator },
   { href: '/configuracoes', label: 'Config.', icon: Settings },
