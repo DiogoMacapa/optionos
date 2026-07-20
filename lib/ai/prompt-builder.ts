@@ -13,7 +13,7 @@ export function buildOperationAnalysisPrompt(opportunity: Opportunity): string {
   const entry = opportunity.option_chain_entry;
   const asset = opportunity.asset;
 
-  return `Analise esta operação de venda de opção (estratégia: ${entry?.option_type === 'PUT' ? 'PUT Cash Secured' : 'Covered Call'}) e me dê: pontos fortes, pontos fracos, riscos, vantagens, desvantagens e uma conclusão objetiva sobre se vale a pena executar.
+  return `Analise esta operação de venda de opção (estratégia: ${entry?.option_type === 'PUT' ? 'PUT Cash Secured' : 'Covered Call'}). Antes de concluir, pesquise na internet informações recentes sobre ${asset?.ticker ?? 'o ativo'} que possam afetar essa operação até o vencimento: guerra/conflitos geopolíticos relevantes para o setor, data de divulgação de resultados (se cair antes do vencimento), pagamento de proventos/dividendos anunciado ou esperado, e qualquer notícia relevante do período. Toda informação de contexto é importante para decidir se vale a pena abrir a operação.
 
 Ativo: ${asset?.ticker ?? '—'}
 Tipo: ${entry?.option_type ?? '—'}
@@ -35,7 +35,14 @@ Breakdown do score: ${
       : '—'
   }
 
-Considere que minha estratégia prioriza: maior prêmio possível, menor risco de exercício, boa liquidez e distância adequada até o strike.`;
+Considere que minha estratégia prioriza: maior prêmio possível, menor risco de exercício, boa liquidez e distância adequada até o strike.
+
+Na resposta, seja objetivo e coeso. Traga, nesta ordem:
+1. Contexto de mercado relevante encontrado na pesquisa (ou "nada relevante encontrado")
+2. Probabilidade de a operação ser exercida até o vencimento, e por quê
+3. Pontos fortes e pontos fracos
+4. Riscos específicos desta operação (incluindo os do contexto pesquisado)
+5. Recomendação final objetiva: vale a pena executar ou não`;
 }
 
 export function buildPortfolioAnalysisPrompt(operations: Operation[]): string {
