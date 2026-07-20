@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { ImagePlus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,7 +18,7 @@ export function PrintDropzone({
   processing = false,
   progress = null,
   label = 'Arraste o print aqui',
-  hint = 'ou clique para selecionar um arquivo — PNG ou JPG',
+  hint = 'ou clique para selecionar, ou cole com Ctrl+V — PNG ou JPG',
 }: PrintDropzoneProps) {
   const handleDrop = useCallback(
     (accepted: File[]) => {
@@ -34,6 +34,33 @@ export function PrintDropzone({
     maxFiles: 1,
     disabled: processing,
   });
+
+  // Colar direto da área de transferência (Ctrl+V) — mesmo fluxo já usado
+  // no chat, mais rápido do que abrir o seletor de arquivo.
+  const processingRef = useRef(processing);
+  useEffect(() => {
+    processingRef.current = processing;
+  }, [processing]);
+
+  useEffect(() => {
+    function handlePaste(e: ClipboardEvent) {
+      if (processingRef.current) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            onDrop(file);
+          }
+          break;
+        }
+      }
+    }
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [onDrop]);
 
   return (
     <div

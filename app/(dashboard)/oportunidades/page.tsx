@@ -335,7 +335,7 @@ export default function OportunidadesPage() {
                 }}
                 processing={bookOcr.status === 'processing'}
                 label="Arraste o print do book aqui"
-                hint="Recorte a tabela de strikes antes de tirar o print, se possível"
+                hint="ou clique para selecionar, ou cole com Ctrl+V — recorte a tabela de strikes antes, se possível"
               />
               {bookOcr.status === 'error' && <p className="text-sm text-danger">{bookOcr.error}</p>}
             </div>
