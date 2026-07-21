@@ -21,6 +21,7 @@ import { PieChartCard } from '@/components/dashboard/pie-chart-card';
 import { BarChartCard } from '@/components/dashboard/bar-chart-card';
 import { IrCreditPanel } from '@/components/dashboard/ir-credit-panel';
 import { CommissionPanel } from '@/components/dashboard/commission-panel';
+import { WithdrawalPanel } from '@/components/dashboard/withdrawal-panel';
 import { Button } from '@/components/ui/button';
 import { AiAnalysisDialog } from '@/components/shared/ai-analysis-dialog';
 import { useDashboardData, computeKpis, filterByHolder } from '@/lib/hooks/use-dashboard-data';
@@ -95,6 +96,25 @@ export default function DashboardPage() {
     acc.push({ date: c.received_at, value: previous + c.amount });
     return acc;
   }, []);
+
+  const withdrawalSeries = [...withdrawals]
+    .sort((a, b) => new Date(a.withdrawn_at).getTime() - new Date(b.withdrawn_at).getTime())
+    .reduce<{ date: string; value: number }[]>((acc, w) => {
+      const previous = acc.length > 0 ? acc[acc.length - 1].value : 0;
+      acc.push({ date: w.withdrawn_at, value: previous + w.amount });
+      return acc;
+    }, []);
+
+  // Evolução do IR Pago: acumulado ao longo do tempo, na data de encerramento
+  // de cada operação — mesma regra já usada no KPI "Total de IR Pago" (só
+  // conta IR de operações com resultado bruto positivo, nunca negativo).
+  const irPaidSeries = closedChronological
+    .filter((o) => o.ir_amount && (o.gross_result ?? 0) > 0)
+    .reduce<{ date: string; value: number }[]>((acc, o) => {
+      const previous = acc.length > 0 ? acc[acc.length - 1].value : 0;
+      acc.push({ date: (o.closed_at as string).slice(0, 10), value: previous + (o.ir_amount ?? 0) });
+      return acc;
+    }, []);
 
   const equityCompositionData =
     kpis.freeCash !== null
@@ -219,6 +239,8 @@ export default function DashboardPage() {
 
       <CommissionPanel entries={commissionEntries} onChanged={refetchDashboard} />
 
+      <WithdrawalPanel entries={withdrawals} onChanged={refetchDashboard} />
+
       {/* KPIs superiores */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <KpiCard label="Patrimônio Atual" value={formatBRL(kpis.currentEquity)} icon={Wallet} accent="accent" />
@@ -239,6 +261,8 @@ export default function DashboardPage() {
         <LineChartCard title="Evolução Patrimonial" data={equitySeries} emptyLabel="Informe o Patrimônio Inicial em Configurações." />
         <LineChartCard title="Evolução dos Prêmios (bruto)" data={premiumSeries} color="var(--info)" />
         <LineChartCard title="Evolução do Lucro (líquido, pós-IR)" data={profitSeries} color="var(--accent)" />
+        <LineChartCard title="Evolução do IR Pago" data={irPaidSeries} color="var(--danger)" emptyLabel="Nenhum IR pago ainda." />
+        <LineChartCard title="Evolução dos Saques" data={withdrawalSeries} color="var(--warning)" emptyLabel="Nenhum saque lançado ainda." />
         <LineChartCard title="Evolução das Comissões" data={commissionSeries} color="var(--accent)" emptyLabel="Nenhuma comissão lançada ainda." />
         <PieChartCard title="Patrimônio × Caixa" data={equityCompositionData} emptyLabel="Informe o Patrimônio Inicial em Configurações." />
       </div>
