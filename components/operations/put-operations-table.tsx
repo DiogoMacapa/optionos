@@ -5,6 +5,7 @@ import { RefreshCw, Trash2, Wallet, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { WeekRangePicker } from '@/components/operations/week-range-picker';
 import { DatePickerField } from '@/components/operations/date-picker-field';
+import { ExerciseRiskGauge } from '@/components/operations/exercise-risk-gauge';
 import { formatBRL, formatPct, formatNumber, formatDate, parseBRNumber, cn } from '@/lib/utils';
 import {
   updateOperationFields,
@@ -275,6 +276,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
             <Th>Strike</Th>
             <Th>Delta</Th>
             <Th>Distância do strike</Th>
+            <Th>Risco</Th>
             <Th>Teto</Th>
             <Th>Spread</Th>
             <Th>Garantia</Th>
@@ -470,6 +472,11 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                   <span className="font-tabular text-[11.5px] text-accent">
                     {r.distance !== null ? formatPct(r.distance * 100, 2) : '—'}
                   </span>
+                </Td>
+
+                {/* Risco — barra visual Cotação vs Strike + probabilidade via Delta */}
+                <Td width={130}>
+                  <ExerciseRiskGauge strike={r.strike} quote={r.quote} delta={op.delta_at_open} optionType="PUT" />
                 </Td>
 
                 {/* Teto */}

@@ -5,6 +5,7 @@ import { RefreshCw, Trash2, Wallet, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { WeekRangePicker } from '@/components/operations/week-range-picker';
 import { DatePickerField } from '@/components/operations/date-picker-field';
+import { ExerciseRiskGauge } from '@/components/operations/exercise-risk-gauge';
 import { formatBRL, formatPct, formatNumber, formatDate, parseBRNumber, cn } from '@/lib/utils';
 import {
   updateOperationFields,
@@ -90,7 +91,7 @@ function calcCallRow(op: Operation, averagePrice: number | null, irFrozen: boole
     efficiency = op.efficiency_pct ?? null;
   }
 
-  return { strike, premium, spread, distance, rate, lucroPrejuizoPorAcao, totalPremium, totalBuyback, resultado, ir, netProfit, efficiency };
+  return { strike, quote, premium, spread, distance, rate, lucroPrejuizoPorAcao, totalPremium, totalBuyback, resultado, ir, netProfit, efficiency };
 }
 
 function InlineField({
@@ -261,6 +262,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
             <Th>PM</Th>
             <Th>Lucro/Prejuízo</Th>
             <Th>Distância</Th>
+            <Th>Risco</Th>
             <Th>Taxa</Th>
             <Th>Prêmio Recompra</Th>
             <Th>Total Recompra</Th>
@@ -394,6 +396,9 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                 </Td>
                 <Td>
                   <span className="font-tabular text-[11.5px] text-accent">{r.distance !== null ? formatPct(r.distance * 100, 2) : '—'}</span>
+                </Td>
+                <Td width={130}>
+                  <ExerciseRiskGauge strike={r.strike} quote={r.quote} delta={op.delta_at_open} optionType="CALL" />
                 </Td>
                 <Td>
                   <span className="font-tabular text-[11.5px] text-accent">{formatPct(r.rate * 100, 2)}</span>
