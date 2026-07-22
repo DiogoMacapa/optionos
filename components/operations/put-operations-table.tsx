@@ -20,6 +20,7 @@ import type { Operation, Withdrawal } from '@/lib/types/database';
 interface PutOperationsTableProps {
   operations: Operation[];
   withdrawalsByOperation: Record<string, Withdrawal>;
+  irFrozen: boolean;
   onChanged: () => void;
   onClose: (op: Operation) => void;
 }
@@ -53,7 +54,7 @@ function formatPreciseNumber(n: number): string {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 }
 
-function calcPutRow(op: Operation) {
+function calcPutRow(op: Operation, irFrozen: boolean) {
   const quote = op.reference_quote;
   const strike = op.strike;
   // 4 casas de precisão (mesma escala do numeric(14,4) no banco) — evita que o
@@ -85,7 +86,7 @@ function calcPutRow(op: Operation) {
 
   if (op.status === 'aberta') {
     if (totalBuyback !== null) {
-      const live = calculateNetProfit({ optionType: 'PUT', premiumReceived: totalPremium, buybackCost: totalBuyback });
+      const live = calculateNetProfit({ optionType: 'PUT', premiumReceived: totalPremium, buybackCost: totalBuyback, irFrozen });
       ir = round2(live.ir);
       netProfit = round2(live.netProfit);
       efficiency = round2(live.efficiencyPct);
@@ -141,7 +142,7 @@ function InlineField({
   );
 }
 
-export function PutOperationsTable({ operations, withdrawalsByOperation, onChanged, onClose }: PutOperationsTableProps) {
+export function PutOperationsTable({ operations, withdrawalsByOperation, irFrozen, onChanged, onClose }: PutOperationsTableProps) {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [quoteLoadingId, setQuoteLoadingId] = useState<string | null>(null);
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -294,7 +295,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, onChang
         </thead>
         <tbody>
           {operations.map((op) => {
-            const r = calcPutRow(op);
+            const r = calcPutRow(op, irFrozen);
             const editable = op.status === 'aberta';
             return (
               <tr key={op.id} className="border-t border-border">

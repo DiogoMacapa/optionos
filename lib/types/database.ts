@@ -108,6 +108,7 @@ export interface StrategySettings {
   emergency_reserve: number;
   initial_equity: number | null;
   ir_loss_to_offset: number;
+  ir_frozen: boolean;
   max_concentration_pct: number | null;
   min_days_to_expiration: number | null;
   max_days_to_expiration: number | null;

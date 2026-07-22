@@ -73,6 +73,7 @@ export interface NetProfitInput {
   exercised?: boolean;          // true se a opção foi exercida
   strikeVsAveragePriceResult?: number; // (Strike-PM)×Qtd, só relevante para CALL exercida
   otherCosts?: number;          // corretagem, emolumentos, etc.
+  irFrozen?: boolean;           // true = IR = 0 (compensando prejuízo acumulado, controlado manualmente pelo usuário)
 }
 
 export interface NetProfitResult {
@@ -90,6 +91,7 @@ export function calculateNetProfit({
   exercised = false,
   strikeVsAveragePriceResult = 0,
   otherCosts = 0,
+  irFrozen = false,
 }: NetProfitInput): NetProfitResult {
   const efficiencyPct =
     premiumReceived > 0 ? Math.round((1 - buybackCost / premiumReceived) * 10000) / 100 : 0;
@@ -99,7 +101,7 @@ export function calculateNetProfit({
     // resultado da venda das ações ao strike (pode ser negativo se
     // Strike < PM). O IR incide sobre essa soma.
     const irBase = premiumReceived + strikeVsAveragePriceResult;
-    const ir = irBase > 0 ? irBase * IR_RATE : 0;
+    const ir = irFrozen ? 0 : irBase > 0 ? irBase * IR_RATE : 0;
     return {
       grossResult: irBase,
       irBase,
@@ -114,13 +116,13 @@ export function calculateNetProfit({
   if (optionType === 'CALL') {
     // CALL não exercida: IR sempre sobre o prêmio bruto, não sobre o líquido.
     const irBase = premiumReceived;
-    const ir = irBase > 0 ? irBase * IR_RATE : 0;
+    const ir = irFrozen ? 0 : irBase > 0 ? irBase * IR_RATE : 0;
     return { grossResult, irBase, ir, netProfit: grossResult - ir, efficiencyPct };
   }
 
   // PUT: IR sobre o resultado líquido (prêmio - recompra).
   const irBase = grossResult;
-  const ir = irBase > 0 ? irBase * IR_RATE : 0;
+  const ir = irFrozen ? 0 : irBase > 0 ? irBase * IR_RATE : 0;
   return { grossResult, irBase, ir, netProfit: grossResult - ir, efficiencyPct };
 }
 

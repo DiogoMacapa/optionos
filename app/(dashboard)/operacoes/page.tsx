@@ -16,16 +16,18 @@ import {
   getSelfHolder,
   findOrCreateAsset,
   listWithdrawals,
+  getStrategySettings,
   type CloseOperationInput,
   type NewOperationInput,
 } from '@/lib/supabase/queries';
-import type { Operation, Withdrawal } from '@/lib/types/database';
+import type { Operation, Withdrawal, StrategySettings } from '@/lib/types/database';
 
 export default function OperacoesPage() {
   const [mainTab, setMainTab] = useState<'operacoes' | 'acoes'>('operacoes');
   const [subTab, setSubTab] = useState<'PUT' | 'CALL'>('PUT');
   const [operations, setOperations] = useState<Operation[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [strategySettings, setStrategySettings] = useState<StrategySettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [holderFilter, setHolderFilter] = useState<string | 'todos'>('todos');
@@ -37,9 +39,10 @@ export default function OperacoesPage() {
     setLoading(true);
     setError(null);
     try {
-      const [ops, wds] = await Promise.all([listOperations(), listWithdrawals()]);
+      const [ops, wds, settings] = await Promise.all([listOperations(), listWithdrawals(), getStrategySettings()]);
       setOperations(ops);
       setWithdrawals(wds);
+      setStrategySettings(settings);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar operações.');
     } finally {
@@ -53,10 +56,11 @@ export default function OperacoesPage() {
       setLoading(true);
       setError(null);
       try {
-        const [ops, wds] = await Promise.all([listOperations(), listWithdrawals()]);
+        const [ops, wds, settings] = await Promise.all([listOperations(), listWithdrawals(), getStrategySettings()]);
         if (!cancelled) {
           setOperations(ops);
           setWithdrawals(wds);
+          setStrategySettings(settings);
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Erro ao carregar operações.');
@@ -267,6 +271,7 @@ export default function OperacoesPage() {
                     <PutOperationsTable
                       operations={g.operations}
                       withdrawalsByOperation={withdrawalsByOperation}
+                      irFrozen={strategySettings?.ir_frozen ?? false}
                       onChanged={refresh}
                       onClose={handleOpenClose}
                     />
@@ -293,6 +298,7 @@ export default function OperacoesPage() {
                     <CallOperationsTable
                       operations={g.operations}
                       withdrawalsByOperation={withdrawalsByOperation}
+                      irFrozen={strategySettings?.ir_frozen ?? false}
                       onChanged={refresh}
                       onClose={handleOpenClose}
                     />
@@ -317,6 +323,7 @@ export default function OperacoesPage() {
           onConfirm={handleClose}
           onRoll={handleRoll}
           averagePrice={closingOpAveragePrice}
+          irFrozen={strategySettings?.ir_frozen ?? false}
         />
       )}
     </div>

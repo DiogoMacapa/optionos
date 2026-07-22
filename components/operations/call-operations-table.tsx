@@ -20,6 +20,7 @@ import type { Operation, Withdrawal } from '@/lib/types/database';
 interface CallOperationsTableProps {
   operations: Operation[];
   withdrawalsByOperation: Record<string, Withdrawal>;
+  irFrozen: boolean;
   onChanged: () => void;
   onClose: (op: Operation) => void;
 }
@@ -40,7 +41,7 @@ interface CallOperationsTableProps {
  *   - IR sobre o prêmio BRUTO quando não exercida; sobre
  *     (Prêmio + (Strike−PM)×Qtd) quando exercida
  */
-function calcCallRow(op: Operation, averagePrice: number | null) {
+function calcCallRow(op: Operation, averagePrice: number | null, irFrozen: boolean) {
   const quote = op.reference_quote;
   const strike = op.strike;
   const premium = op.quantity > 0 ? op.premium_received / op.quantity : 0; // Prêmio Venda (por ação)
@@ -69,13 +70,14 @@ function calcCallRow(op: Operation, averagePrice: number | null) {
         premiumReceived: totalPremium,
         exercised: true,
         strikeVsAveragePriceResult: stockSaleResult,
+        irFrozen,
       });
       resultado = live.grossResult;
       ir = live.ir;
       netProfit = live.netProfit;
       efficiency = live.efficiencyPct;
     } else if (totalBuyback !== null) {
-      const live = calculateNetProfit({ optionType: 'CALL', premiumReceived: totalPremium, buybackCost: totalBuyback });
+      const live = calculateNetProfit({ optionType: 'CALL', premiumReceived: totalPremium, buybackCost: totalBuyback, irFrozen });
       resultado = live.grossResult;
       ir = live.ir;
       netProfit = live.netProfit;
@@ -122,7 +124,7 @@ function InlineField({
   );
 }
 
-export function CallOperationsTable({ operations, withdrawalsByOperation, onChanged, onClose }: CallOperationsTableProps) {
+export function CallOperationsTable({ operations, withdrawalsByOperation, irFrozen, onChanged, onClose }: CallOperationsTableProps) {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [quoteLoadingId, setQuoteLoadingId] = useState<string | null>(null);
   const [averagePrices, setAveragePrices] = useState<Record<string, number | null>>({});
@@ -275,7 +277,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, onChan
           {operations.map((op) => {
             const key = `${op.asset_id}-${op.holder_id}`;
             const averagePrice = averagePrices[key] ?? null;
-            const r = calcCallRow(op, averagePrice);
+            const r = calcCallRow(op, averagePrice, irFrozen);
             const editable = op.status === 'aberta';
 
             return (

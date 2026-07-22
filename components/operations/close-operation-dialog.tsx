@@ -22,6 +22,8 @@ interface CloseOperationDialogProps {
   onRoll: (buybackCost: number, newOperation: NewOperationInput) => Promise<void>;
   /** Preço médio das ações (só relevante se for CALL e puder ser exercida). */
   averagePrice?: number | null;
+  /** IR congelado (Configurações) — enquanto true, toda operação encerrada tem IR = 0. */
+  irFrozen?: boolean;
 }
 
 type OutcomeType = 'expirou' | 'recomprou' | 'exercida' | 'rolou';
@@ -33,6 +35,7 @@ export function CloseOperationDialog({
   onConfirm,
   onRoll,
   averagePrice,
+  irFrozen = false,
 }: CloseOperationDialogProps) {
   const [outcome, setOutcome] = useState<OutcomeType>('expirou');
   const [buybackCostPerShare, setBuybackCostPerShare] = useState('0');
@@ -66,8 +69,9 @@ export function CloseOperationDialog({
         buybackCost: cost,
         exercised,
         strikeVsAveragePriceResult: stockSaleResult,
+        irFrozen,
       }),
-    [operation.option_type, totalPremium, cost, exercised, stockSaleResult]
+    [operation.option_type, totalPremium, cost, exercised, stockSaleResult, irFrozen]
   );
 
   const commission = useMemo(
@@ -118,8 +122,9 @@ export function CloseOperationDialog({
     }
   }
 
-  const irLabel =
-    operation.option_type === 'PUT'
+  const irLabel = irFrozen
+    ? 'IR (congelado — compensando prejuízo)'
+    : operation.option_type === 'PUT'
       ? 'IR (15% sobre prêmio − recompra)'
       : exercised
         ? 'IR (15% sobre prêmio + resultado da venda)'

@@ -49,6 +49,7 @@ export default function ConfiguracoesPage() {
           emergency_reserve: String(s.emergency_reserve ?? 0).replace('.', ','),
           initial_equity: s.initial_equity === null ? '' : String(s.initial_equity).replace('.', ','),
           ir_loss_to_offset: String(s.ir_loss_to_offset ?? 0).replace('.', ','),
+          ir_frozen: String(s.ir_frozen ?? false),
           max_concentration_pct: s.max_concentration_pct === null ? '' : String(s.max_concentration_pct).replace('.', ','),
           min_days_to_expiration: s.min_days_to_expiration === null ? '' : String(s.min_days_to_expiration),
           max_days_to_expiration: s.max_days_to_expiration === null ? '' : String(s.max_days_to_expiration),
@@ -74,6 +75,7 @@ export default function ConfiguracoesPage() {
         emergency_reserve: parseBRNumber(settingsText.emergency_reserve ?? '0'),
         initial_equity: settingsText.initial_equity?.trim() ? parseBRNumber(settingsText.initial_equity) : null,
         ir_loss_to_offset: parseBRNumber(settingsText.ir_loss_to_offset ?? '0'),
+        ir_frozen: settingsText.ir_frozen === 'true',
         max_concentration_pct: settingsText.max_concentration_pct?.trim()
           ? parseBRNumber(settingsText.max_concentration_pct)
           : null,
@@ -234,6 +236,30 @@ export default function ConfiguracoesPage() {
               <p className="text-[11px] text-faint-foreground">
                 Saldo de prejuízo ainda não compensado, olhando seu app de IR — atualize manualmente. Não soma
                 ao Patrimônio; é só um indicador de referência no Dashboard.
+              </p>
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label className="flex items-center gap-1.5">
+                IR Congelado
+                {settingsText.ir_frozen === 'true' && (
+                  <span className="rounded bg-warning-muted px-1.5 py-0.5 text-[9px] font-bold text-warning">ATIVO</span>
+                )}
+              </Label>
+              <button
+                type="button"
+                onClick={() => setSettingsText((t) => ({ ...t, ir_frozen: t.ir_frozen === 'true' ? 'false' : 'true' }))}
+                className={`flex w-fit items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  settingsText.ir_frozen === 'true'
+                    ? 'border-warning/40 bg-warning-muted text-warning'
+                    : 'border-border bg-surface-elevated text-foreground hover:bg-surface-hover'
+                }`}
+              >
+                {settingsText.ir_frozen === 'true' ? 'Congelado — nenhuma operação nova desconta IR' : 'Normal — IR calculado como sempre (15%)'}
+              </button>
+              <p className="text-[11px] text-faint-foreground">
+                Ligue enquanto você ainda tem prejuízo a compensar (acima) — o Lucro Líquido de toda operação
+                nova vira igual ao Lucro Bruto, sem descontar IR. Desligue quando o prejuízo acabar e você
+                voltar a pagar IR de verdade. Não afeta operações já encerradas.
               </p>
             </div>
             <div className="space-y-1">
