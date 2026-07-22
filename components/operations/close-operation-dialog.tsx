@@ -35,7 +35,7 @@ export function CloseOperationDialog({
   averagePrice,
 }: CloseOperationDialogProps) {
   const [outcome, setOutcome] = useState<OutcomeType>('expirou');
-  const [buybackCost, setBuybackCost] = useState('0');
+  const [buybackCostPerShare, setBuybackCostPerShare] = useState('0');
   const [saving, setSaving] = useState(false);
 
   // Campos da nova operação (rolagem)
@@ -45,7 +45,10 @@ export function CloseOperationDialog({
   const [rollExpiration, setRollExpiration] = useState('');
 
   const totalPremium = operation.premium_received;
-  const cost = outcome === 'expirou' ? 0 : parseBRNumber(buybackCost);
+  // Usuário digita o custo de recompra POR AÇÃO — o total é sempre derivado
+  // multiplicando pela quantidade, igual já funciona nas tabelas PUT/CALL
+  // (Valor Recompra × Qnt = Total Recompra).
+  const cost = outcome === 'expirou' ? 0 : parseBRNumber(buybackCostPerShare) * operation.quantity;
   const exercised = outcome === 'exercida';
   const isRolling = outcome === 'rolou';
   const hasCommission = !!operation.holder && !operation.holder.is_self && operation.holder.commission_pct > 0;
@@ -154,14 +157,19 @@ export function CloseOperationDialog({
 
           {(outcome === 'recomprou' || isRolling) && (
             <div className="space-y-1">
-              <Label htmlFor="buyback">{isRolling ? 'Custo de recompra da posição atual' : 'Custo de recompra (total)'}</Label>
+              <Label htmlFor="buyback">
+                {isRolling ? 'Custo de recompra da posição atual (por ação)' : 'Custo de recompra (por ação)'}
+              </Label>
               <Input
                 id="buyback"
-                value={buybackCost}
-                onChange={(e) => setBuybackCost(e.target.value)}
+                value={buybackCostPerShare}
+                onChange={(e) => setBuybackCostPerShare(e.target.value)}
                 className="font-tabular"
                 placeholder="0,00"
               />
+              {cost > 0 && (
+                <p className="text-[11px] text-faint-foreground">Total: {formatBRL(cost)} ({operation.quantity} ações)</p>
+              )}
             </div>
           )}
 
