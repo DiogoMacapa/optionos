@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Wallet,
   TrendingUp,
@@ -22,6 +23,7 @@ import { BarChartCard } from '@/components/dashboard/bar-chart-card';
 import { IrCreditPanel } from '@/components/dashboard/ir-credit-panel';
 import { CommissionPanel } from '@/components/dashboard/commission-panel';
 import { WithdrawalPanel } from '@/components/dashboard/withdrawal-panel';
+import { KpiDetailDialog } from '@/components/dashboard/kpi-detail-dialog';
 import { Button } from '@/components/ui/button';
 import { AiAnalysisDialog } from '@/components/shared/ai-analysis-dialog';
 import { useDashboardData, computeKpis, filterByHolder } from '@/lib/hooks/use-dashboard-data';
@@ -36,6 +38,8 @@ import {
 } from '@/lib/learning/statistics';
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const [detailKind, setDetailKind] = useState<'profit' | 'premiums' | 'commissions' | 'withdrawals' | null>(null);
   const {
     operations: allOperations,
     holders,
@@ -245,14 +249,42 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <KpiCard label="Patrimônio Atual" value={formatBRL(kpis.currentEquity)} icon={Wallet} accent="accent" />
         <KpiCard label="Patrimônio Inicial" value={formatBRL(kpis.initialEquity)} icon={Wallet} />
-        <KpiCard label="Lucro Total (líquido)" value={formatBRL(kpis.totalProfit)} icon={TrendingUp} accent={kpis.totalProfit >= 0 ? 'accent' : 'danger'} />
-        <KpiCard label="Prêmios Recebidos (bruto)" value={formatBRL(kpis.totalPremiums)} icon={Coins} accent="accent" />
+        <KpiCard
+          label="Lucro Total (líquido)"
+          value={formatBRL(kpis.totalProfit)}
+          icon={TrendingUp}
+          accent={kpis.totalProfit >= 0 ? 'accent' : 'danger'}
+          onClick={() => setDetailKind('profit')}
+        />
+        <KpiCard
+          label="Prêmios Recebidos (bruto)"
+          value={formatBRL(kpis.totalPremiums)}
+          icon={Coins}
+          accent="accent"
+          onClick={() => setDetailKind('premiums')}
+        />
         <KpiCard label="Total de IR Pago" value={formatBRL(kpis.totalIrPaid)} icon={Receipt} accent="danger" />
-        <KpiCard label="Total Sacado" value={formatBRL(kpis.totalWithdrawn)} icon={PiggyBank} />
-        <KpiCard label="Comissões Recebidas" value={formatBRL(kpis.totalCommissions)} icon={Handshake} accent="accent" />
+        <KpiCard
+          label="Total Sacado"
+          value={formatBRL(kpis.totalWithdrawn)}
+          icon={PiggyBank}
+          onClick={() => setDetailKind('withdrawals')}
+        />
+        <KpiCard
+          label="Comissões Recebidas"
+          value={formatBRL(kpis.totalCommissions)}
+          icon={Handshake}
+          accent="accent"
+          onClick={() => setDetailKind('commissions')}
+        />
         <KpiCard label="Caixa Livre" value={formatBRL(kpis.freeCash)} icon={PiggyBank} />
         <KpiCard label="Capital Comprometido" value={formatBRL(kpis.committedCapital)} icon={Lock} />
-        <KpiCard label="Operações Abertas" value={String(kpis.openOperationsCount)} icon={Layers} />
+        <KpiCard
+          label="Operações Abertas"
+          value={String(kpis.openOperationsCount)}
+          icon={Layers}
+          onClick={() => router.push('/operacoes')}
+        />
         <KpiCard label="Taxa de Sucesso" value={formatPct(kpis.successRatePct, 1)} icon={Target} accent="accent" />
       </div>
 
@@ -348,6 +380,14 @@ export default function DashboardPage() {
         onOpenChange={setAnalyzeOpen}
         title="Analisar Carteira"
         prompt={buildPortfolioAnalysisPrompt(operations)}
+      />
+
+      <KpiDetailDialog
+        kind={detailKind}
+        onClose={() => setDetailKind(null)}
+        operations={operations}
+        commissionEntries={commissionEntries}
+        withdrawals={withdrawals}
       />
     </div>
   );

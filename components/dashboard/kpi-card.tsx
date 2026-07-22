@@ -7,11 +7,18 @@ interface KpiCardProps {
   icon: LucideIcon;
   trend?: { value: string; positive: boolean } | null;
   accent?: 'default' | 'accent' | 'danger';
+  onClick?: () => void;
 }
 
-export function KpiCard({ label, value, icon: Icon, trend, accent = 'default' }: KpiCardProps) {
+export function KpiCard({ label, value, icon: Icon, trend, accent = 'default', onClick }: KpiCardProps) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div
+      onClick={onClick}
+      className={cn(
+        'rounded-xl border border-border bg-surface p-4',
+        onClick && 'cursor-pointer transition-colors hover:border-accent/40 hover:bg-surface-hover'
+      )}
+    >
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground">{label}</span>
         <Icon
