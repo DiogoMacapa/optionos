@@ -474,9 +474,9 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                   </span>
                 </Td>
 
-                {/* Risco — barra visual Cotação vs Strike + probabilidade via Delta */}
-                <Td width={130}>
-                  <ExerciseRiskGauge strike={r.strike} quote={r.quote} delta={op.delta_at_open} optionType="PUT" />
+                {/* Risco — badge Dentro/Fora do dinheiro + barra visual Cotação vs Strike */}
+                <Td width={144}>
+                  <ExerciseRiskGauge strike={r.strike} quote={r.quote} optionType="PUT" />
                 </Td>
 
                 {/* Teto */}

@@ -397,8 +397,8 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                 <Td>
                   <span className="font-tabular text-[11.5px] text-accent">{r.distance !== null ? formatPct(r.distance * 100, 2) : '—'}</span>
                 </Td>
-                <Td width={130}>
-                  <ExerciseRiskGauge strike={r.strike} quote={r.quote} delta={op.delta_at_open} optionType="CALL" />
+                <Td width={144}>
+                  <ExerciseRiskGauge strike={r.strike} quote={r.quote} optionType="CALL" />
                 </Td>
                 <Td>
                   <span className="font-tabular text-[11.5px] text-accent">{formatPct(r.rate * 100, 2)}</span>
