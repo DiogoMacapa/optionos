@@ -283,7 +283,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
             const editable = op.status === 'aberta';
 
             return (
-              <tr key={op.id} className="border-t border-border">
+              <tr key={op.id} className={cn('border-t border-border transition-opacity', !editable && 'opacity-60 hover:opacity-100')}>
                 <Td>
                   <Badge variant={op.status === 'aberta' ? 'outline' : 'default'}>{op.status}</Badge>
                 </Td>

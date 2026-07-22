@@ -300,7 +300,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
             const r = calcPutRow(op, irFrozen);
             const editable = op.status === 'aberta';
             return (
-              <tr key={op.id} className="border-t border-border">
+              <tr key={op.id} className={cn('border-t border-border transition-opacity', !editable && 'opacity-60 hover:opacity-100')}>
                 {/* Status */}
                 <Td>
                   <Badge variant={op.status === 'aberta' ? 'outline' : 'default'}>{op.status}</Badge>
