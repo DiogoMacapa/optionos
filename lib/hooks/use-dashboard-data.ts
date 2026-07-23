@@ -186,3 +186,36 @@ export function computeKpis(
     exerciseRatePct: exerciseRate,
   };
 }
+
+// ------------------------------------------------------------
+// Série histórica real do patrimônio: começa no Patrimônio Inicial e
+// evolui cronologicamente somando o lucro líquido de cada operação
+// fechada, comissões recebidas, e subtraindo saques na data em que
+// ocorreram. Reaproveitada pelo Dashboard (Evolução Patrimonial) e
+// pela tela de Objetivos (gráfico de projeção da meta).
+// ------------------------------------------------------------
+export function computeEquitySeries(
+  initialEquity: number | null,
+  operations: Operation[],
+  withdrawals: Withdrawal[],
+  commissionEntries: CommissionEntry[]
+): { date: string; value: number }[] {
+  if (initialEquity === null) return [];
+
+  const closedChronological = [...operations]
+    .filter((o) => o.status !== 'aberta' && o.net_profit !== null && o.closed_at)
+    .sort((a, b) => new Date(a.closed_at as string).getTime() - new Date(b.closed_at as string).getTime());
+
+  type Event = { date: string; delta: number };
+  const events: Event[] = [
+    ...closedChronological.map((o) => ({ date: (o.closed_at as string).slice(0, 10), delta: o.net_profit ?? 0 })),
+    ...withdrawals.map((w) => ({ date: w.withdrawn_at, delta: -w.amount })),
+    ...commissionEntries.map((c) => ({ date: c.received_at, delta: c.amount })),
+  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  return events.reduce<{ date: string; value: number }[]>((acc, ev) => {
+    const previous = acc.length > 0 ? acc[acc.length - 1].value : initialEquity;
+    acc.push({ date: ev.date, value: previous + ev.delta });
+    return acc;
+  }, []);
+}

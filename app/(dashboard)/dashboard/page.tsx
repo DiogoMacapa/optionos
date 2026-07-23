@@ -27,7 +27,7 @@ import { EquityCompositionPanel } from '@/components/dashboard/equity-compositio
 import { KpiDetailDialog } from '@/components/dashboard/kpi-detail-dialog';
 import { Button } from '@/components/ui/button';
 import { AiAnalysisDialog } from '@/components/shared/ai-analysis-dialog';
-import { useDashboardData, computeKpis, filterByHolder } from '@/lib/hooks/use-dashboard-data';
+import { useDashboardData, computeKpis, filterByHolder, computeEquitySeries } from '@/lib/hooks/use-dashboard-data';
 import { buildPortfolioAnalysisPrompt } from '@/lib/ai/prompt-builder';
 import { formatBRL, formatPct } from '@/lib/utils';
 import {
@@ -79,22 +79,7 @@ export default function DashboardPage() {
   // "Patrimônio Atual" (que só soma operações com counts_toward_equity=true,
   // para não contar de novo um histórico já embutido no valor informado) —
   // aqui é só visualização da trajetória, o usuário quer ver a curva completa.
-  const equitySeries = (() => {
-    const initial = kpis.initialEquity;
-    if (initial === null) return [];
-    type Event = { date: string; delta: number };
-    const events: Event[] = [
-      ...closedChronological.map((o) => ({ date: (o.closed_at as string).slice(0, 10), delta: o.net_profit ?? 0 })),
-      ...withdrawals.map((w) => ({ date: w.withdrawn_at, delta: -w.amount })),
-      ...commissionEntries.map((c) => ({ date: c.received_at, delta: c.amount })),
-    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    return events.reduce<{ date: string; value: number }[]>((acc, ev) => {
-      const previous = acc.length > 0 ? acc[acc.length - 1].value : initial;
-      acc.push({ date: ev.date, value: previous + ev.delta });
-      return acc;
-    }, []);
-  })();
+  const equitySeries = computeEquitySeries(kpis.initialEquity, operations, withdrawals, commissionEntries);
 
   const commissionSeries = commissionEntries.reduce<{ date: string; value: number }[]>((acc, c) => {
     const previous = acc.length > 0 ? acc[acc.length - 1].value : 0;
