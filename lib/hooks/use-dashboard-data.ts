@@ -136,7 +136,13 @@ export function computeKpis(
   const totalPremiums = operations.reduce((sum, o) => sum + (o.premium_received || 0), 0);
   const totalProfit = operations.reduce((sum, o) => sum + (o.net_profit || 0), 0);
   const totalIrPaid = operations.reduce((sum, o) => sum + (o.ir_amount && (o.gross_result ?? 0) > 0 ? o.ir_amount : 0), 0);
-  const committedCapital = openOps.reduce((sum, o) => sum + (o.committed_capital || 0), 0);
+  // Capital Comprometido = Garantia real (Strike × Qnt) das PUTs abertas —
+  // não usa o campo 'Caixa' (committed_capital), que é digitado manualmente
+  // e pode ficar desatualizado. CALL não soma nada aqui: a garantia de uma
+  // Covered Call já são as ações que o usuário possui, não caixa novo.
+  const committedCapital = openOps
+    .filter((o) => o.option_type === 'PUT')
+    .reduce((sum, o) => sum + o.strike * o.quantity, 0);
   const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0);
   const totalCommissions = commissionEntries.reduce((sum, c) => sum + c.amount, 0);
 

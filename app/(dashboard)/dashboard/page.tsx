@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Wallet,
   TrendingUp,
   Coins,
   PiggyBank,
@@ -257,8 +256,6 @@ export default function DashboardPage() {
 
       {/* KPIs superiores */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KpiCard label="Patrimônio Atual" value={formatBRL(kpis.currentEquity)} icon={Wallet} accent="accent" />
-        <KpiCard label="Patrimônio Inicial" value={formatBRL(kpis.initialEquity)} icon={Wallet} />
         <KpiCard
           label="Lucro Total (líquido)"
           value={formatBRL(kpis.totalProfit)}
