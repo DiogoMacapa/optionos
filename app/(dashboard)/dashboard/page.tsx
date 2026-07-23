@@ -21,6 +21,7 @@ import { PieChartCard } from '@/components/dashboard/pie-chart-card';
 import { BarChartCard } from '@/components/dashboard/bar-chart-card';
 import { IrCreditPanel } from '@/components/dashboard/ir-credit-panel';
 import { CommissionPanel } from '@/components/dashboard/commission-panel';
+import { GoalsSummaryPanel } from '@/components/dashboard/goals-summary-panel';
 import { WithdrawalPanel } from '@/components/dashboard/withdrawal-panel';
 import { EquityCompositionPanel } from '@/components/dashboard/equity-composition-panel';
 import { KpiDetailDialog } from '@/components/dashboard/kpi-detail-dialog';
@@ -240,6 +241,8 @@ export default function DashboardPage() {
       )}
 
       <IrCreditPanel irLossToOffset={strategySettings?.ir_loss_to_offset ?? 0} />
+
+      <GoalsSummaryPanel currentEquity={kpis.currentEquity} operations={operations} />
 
       <CommissionPanel entries={commissionEntries} onChanged={refetchDashboard} />
 

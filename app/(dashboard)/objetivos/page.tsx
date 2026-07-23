@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { formatBRL, formatDate, parseBRNumber, cn } from '@/lib/utils';
+import { formatBRL, parseBRNumber, cn } from '@/lib/utils';
 import { listGoals, createGoal, updateGoal, deleteGoal, getStrategySettings, listOperations } from '@/lib/supabase/queries';
 import { computeGoalProgress, GOAL_TYPE_LABELS } from '@/lib/goals/progress';
+import { GoalProjectionChart } from '@/components/goals/goal-projection-chart';
 import { computeKpis } from '@/lib/hooks/use-dashboard-data';
 import type { Goal, Operation, StrategySettings } from '@/lib/types/database';
 
@@ -211,7 +212,32 @@ export default function ObjetivosPage() {
                 </div>
               )}
 
-              {goal.deadline && <div className="mt-1 text-[11px] text-faint-foreground">Meta até {formatDate(goal.deadline)}</div>}
+              {goal.deadline && (
+                <div className="mt-4 border-t border-border pt-3">
+                  <GoalProjectionChart progress={progress} />
+                  {progress.neededPerMonth !== null && (
+                    <div className="mt-2 flex items-baseline justify-between">
+                      <span className="text-[11px] text-muted-foreground">Preciso juntar por mês</span>
+                      <span className={cn('font-tabular text-sm font-semibold', progress.neededPerMonth <= 0 ? 'text-accent' : 'text-foreground')}>
+                        {progress.neededPerMonth <= 0 ? 'Meta já alcançada' : formatBRL(progress.neededPerMonth)}
+                      </span>
+                    </div>
+                  )}
+                  {progress.recentAvgProfitPerMonth !== null && progress.neededPerMonth !== null && progress.neededPerMonth > 0 && (
+                    <div className="mt-1 flex items-baseline justify-between">
+                      <span className="text-[11px] text-faint-foreground">Seu ritmo recente (últimos 3 meses)</span>
+                      <span
+                        className={cn(
+                          'font-tabular text-xs',
+                          progress.recentAvgProfitPerMonth >= progress.neededPerMonth ? 'text-accent' : 'text-warning'
+                        )}
+                      >
+                        {formatBRL(progress.recentAvgProfitPerMonth)}/mês
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
