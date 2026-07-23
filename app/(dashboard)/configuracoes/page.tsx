@@ -96,6 +96,28 @@ export default function ConfiguracoesPage() {
     }
   }
 
+  /**
+   * IR Congelado salva IMEDIATAMENTE ao clicar, sem depender do botão
+   * "Salvar estratégia" — evita a armadilha onde o usuário achava que
+   * tinha ligado, mas a mudança só existia no estado local do React e
+   * se perdia ao recarregar a página (causa raiz de operações que
+   * descontaram IR indevidamente).
+   */
+  async function handleToggleIrFrozen() {
+    if (!settings) return;
+    const newValue = !(settingsText.ir_frozen === 'true');
+    setSettingsText((t) => ({ ...t, ir_frozen: String(newValue) }));
+    setSaveError(null);
+    try {
+      const updated = await updateStrategySettings(settings.id, { ir_frozen: newValue });
+      setSettings(updated);
+    } catch (err) {
+      // Reverte o estado local se salvar falhar, para não mostrar um estado que não está de fato persistido.
+      setSettingsText((t) => ({ ...t, ir_frozen: String(!newValue) }));
+      setSaveError(err instanceof Error ? err.message : 'Erro ao salvar IR Congelado. Tente novamente.');
+    }
+  }
+
   async function handleAddHolder() {
     if (!newHolderName.trim()) return;
     const holder = await createHolder({
@@ -247,7 +269,7 @@ export default function ConfiguracoesPage() {
               </Label>
               <button
                 type="button"
-                onClick={() => setSettingsText((t) => ({ ...t, ir_frozen: t.ir_frozen === 'true' ? 'false' : 'true' }))}
+                onClick={handleToggleIrFrozen}
                 className={`flex w-fit items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
                   settingsText.ir_frozen === 'true'
                     ? 'border-warning/40 bg-warning-muted text-warning'
@@ -257,9 +279,10 @@ export default function ConfiguracoesPage() {
                 {settingsText.ir_frozen === 'true' ? 'Congelado — nenhuma operação nova desconta IR' : 'Normal — IR calculado como sempre (15%)'}
               </button>
               <p className="text-[11px] text-faint-foreground">
-                Ligue enquanto você ainda tem prejuízo a compensar (acima) — o Lucro Líquido de toda operação
-                nova vira igual ao Lucro Bruto, sem descontar IR. Desligue quando o prejuízo acabar e você
-                voltar a pagar IR de verdade. Não afeta operações já encerradas.
+                Salva imediatamente ao clicar, sem precisar apertar &quot;Salvar estratégia&quot;. Ligue enquanto
+                você ainda tem prejuízo a compensar (acima) — o Lucro Líquido de toda operação nova vira igual
+                ao Lucro Bruto, sem descontar IR. Desligue quando o prejuízo acabar e você voltar a pagar IR de
+                verdade. Não afeta operações já encerradas.
               </p>
             </div>
             <div className="space-y-1">
