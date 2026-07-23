@@ -234,6 +234,56 @@ export default function DashboardPage() {
         onProfitClick={() => setDetailKind('profit')}
       />
 
+      <IrCreditPanel irLossToOffset={strategySettings?.ir_loss_to_offset ?? 0} />
+
+      <GoalsSummaryPanel currentEquity={kpis.currentEquity} operations={operations} />
+
+      <CommissionPanel entries={commissionEntries} onChanged={refetchDashboard} />
+
+      <WithdrawalPanel entries={withdrawals} onChanged={refetchDashboard} />
+
+      <EquityCompositionPanel
+        initialEquity={kpis.initialEquity}
+        equityImpactingProfit={kpis.equityImpactingProfit}
+        totalCommissions={kpis.totalCommissions}
+        totalWithdrawn={kpis.totalWithdrawn}
+        emergencyReserve={kpis.emergencyReserve}
+        currentEquity={kpis.currentEquity}
+      />
+
+      {/* KPIs superiores */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <KpiCard
+          label="Prêmios Recebidos (bruto)"
+          value={formatBRL(kpis.totalPremiums)}
+          icon={Coins}
+          accent="accent"
+          onClick={() => setDetailKind('premiums')}
+        />
+        <KpiCard label="Total de IR Pago" value={formatBRL(kpis.totalIrPaid)} icon={Receipt} accent="danger" />
+        <KpiCard
+          label="Total Sacado"
+          value={formatBRL(kpis.totalWithdrawn)}
+          icon={PiggyBank}
+          onClick={() => setDetailKind('withdrawals')}
+        />
+        <KpiCard
+          label="Comissões Recebidas"
+          value={formatBRL(kpis.totalCommissions)}
+          icon={Handshake}
+          accent="accent"
+          onClick={() => setDetailKind('commissions')}
+        />
+        <KpiCard label="Caixa Livre" value={formatBRL(kpis.freeCash)} icon={PiggyBank} />
+        <KpiCard label="Capital Comprometido" value={formatBRL(kpis.committedCapital)} icon={Lock} />
+        <KpiCard
+          label="Operações Abertas"
+          value={String(kpis.openOperationsCount)}
+          icon={Layers}
+          onClick={() => router.push('/operacoes')}
+        />
+      </div>
+
       {/* Aprendizado: estatísticas agregadas do histórico real (só operações fechadas) */}
       <div>
         <h2 className="text-sm font-semibold tracking-tight text-foreground">Aprendizado</h2>
@@ -284,56 +334,6 @@ export default function DashboardPage() {
           />
         </>
       )}
-
-      <IrCreditPanel irLossToOffset={strategySettings?.ir_loss_to_offset ?? 0} />
-
-      <GoalsSummaryPanel currentEquity={kpis.currentEquity} operations={operations} />
-
-      <CommissionPanel entries={commissionEntries} onChanged={refetchDashboard} />
-
-      <WithdrawalPanel entries={withdrawals} onChanged={refetchDashboard} />
-
-      <EquityCompositionPanel
-        initialEquity={kpis.initialEquity}
-        equityImpactingProfit={kpis.equityImpactingProfit}
-        totalCommissions={kpis.totalCommissions}
-        totalWithdrawn={kpis.totalWithdrawn}
-        emergencyReserve={kpis.emergencyReserve}
-        currentEquity={kpis.currentEquity}
-      />
-
-      {/* KPIs superiores */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KpiCard
-          label="Prêmios Recebidos (bruto)"
-          value={formatBRL(kpis.totalPremiums)}
-          icon={Coins}
-          accent="accent"
-          onClick={() => setDetailKind('premiums')}
-        />
-        <KpiCard label="Total de IR Pago" value={formatBRL(kpis.totalIrPaid)} icon={Receipt} accent="danger" />
-        <KpiCard
-          label="Total Sacado"
-          value={formatBRL(kpis.totalWithdrawn)}
-          icon={PiggyBank}
-          onClick={() => setDetailKind('withdrawals')}
-        />
-        <KpiCard
-          label="Comissões Recebidas"
-          value={formatBRL(kpis.totalCommissions)}
-          icon={Handshake}
-          accent="accent"
-          onClick={() => setDetailKind('commissions')}
-        />
-        <KpiCard label="Caixa Livre" value={formatBRL(kpis.freeCash)} icon={PiggyBank} />
-        <KpiCard label="Capital Comprometido" value={formatBRL(kpis.committedCapital)} icon={Lock} />
-        <KpiCard
-          label="Operações Abertas"
-          value={String(kpis.openOperationsCount)}
-          icon={Layers}
-          onClick={() => router.push('/operacoes')}
-        />
-      </div>
 
       {/* Gráficos de evolução */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
