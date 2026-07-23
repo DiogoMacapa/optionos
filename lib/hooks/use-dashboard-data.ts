@@ -193,6 +193,11 @@ export function computeKpis(
 // fechada, comissões recebidas, e subtraindo saques na data em que
 // ocorreram. Reaproveitada pelo Dashboard (Evolução Patrimonial) e
 // pela tela de Objetivos (gráfico de projeção da meta).
+//
+// Sempre inclui um ponto inicial fixo (Patrimônio Inicial), um dia
+// antes do primeiro evento real (ou hoje, se não houver nenhum) —
+// sem isso, com poucos eventos o gráfico ficava com 1 ponto só e
+// não desenhava linha nenhuma (LineChartCard exige 2+ pontos).
 // ------------------------------------------------------------
 export function computeEquitySeries(
   initialEquity: number | null,
@@ -213,9 +218,15 @@ export function computeEquitySeries(
     ...commissionEntries.map((c) => ({ date: c.received_at, delta: c.amount })),
   ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+  const firstEventDate = events.length > 0 ? new Date(events[0].date) : new Date();
+  const initialPointDate = new Date(firstEventDate);
+  initialPointDate.setDate(initialPointDate.getDate() - 1);
+
+  const series: { date: string; value: number }[] = [{ date: initialPointDate.toISOString().slice(0, 10), value: initialEquity }];
+
   return events.reduce<{ date: string; value: number }[]>((acc, ev) => {
-    const previous = acc.length > 0 ? acc[acc.length - 1].value : initialEquity;
+    const previous = acc[acc.length - 1].value;
     acc.push({ date: ev.date, value: previous + ev.delta });
     return acc;
-  }, []);
+  }, series);
 }
