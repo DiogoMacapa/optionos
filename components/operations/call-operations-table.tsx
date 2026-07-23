@@ -513,7 +513,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
 }
 
 function Th({ children }: { children?: React.ReactNode }) {
-  return <th className="whitespace-nowrap px-1.5 pb-2 text-left text-[9.5px] font-bold uppercase tracking-wide text-faint-foreground">{children}</th>;
+  return <th className="whitespace-nowrap border-b border-border bg-surface-elevated/40 px-1.5 pb-2 pt-1.5 text-left text-[9.5px] font-bold uppercase tracking-wide text-faint-foreground">{children}</th>;
 }
 
 function Td({ children, width }: { children: React.ReactNode; width?: number }) {

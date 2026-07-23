@@ -35,12 +35,18 @@ interface MonthExpirationGroupProps {
   children: React.ReactNode; // a tabela (PutOperationsTable ou CallOperationsTable) já montada
 }
 
+import { formatBRL, cn } from '@/lib/utils';
+
 export function MonthExpirationGroup({ year, month, operations, defaultOpen = true, children }: MonthExpirationGroupProps) {
   const [open, setOpen] = useState(defaultOpen);
   const openCount = operations.filter((o) => o.status === 'aberta').length;
+  const closedNetProfit = operations
+    .filter((o) => o.status !== 'aberta' && o.net_profit !== null)
+    .reduce((sum, o) => sum + (o.net_profit ?? 0), 0);
+  const hasClosedOps = operations.some((o) => o.status !== 'aberta' && o.net_profit !== null);
 
   return (
-    <div className="rounded-xl border border-border bg-surface">
+    <div className={cn('rounded-xl border bg-surface transition-colors', open ? 'border-accent/25' : 'border-border')}>
       <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between px-4 py-3 text-left">
         <div className="flex items-center gap-2">
           {open ? (
@@ -51,6 +57,12 @@ export function MonthExpirationGroup({ year, month, operations, defaultOpen = tr
           <span className="text-sm font-bold text-foreground">
             {MONTH_NAMES[month]} de {year}
           </span>
+          {hasClosedOps && (
+            <span className={cn('font-tabular text-xs font-semibold', closedNetProfit >= 0 ? 'text-accent' : 'text-danger')}>
+              {closedNetProfit >= 0 ? '+' : ''}
+              {formatBRL(closedNetProfit)}
+            </span>
+          )}
         </div>
         <div className="flex gap-1.5">
           {openCount > 0 && (

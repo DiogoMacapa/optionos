@@ -100,6 +100,13 @@ export default function OperacoesPage() {
   const putGrouped = useMemo(() => groupByExpirationMonth(putOps), [putOps]);
   const callGrouped = useMemo(() => groupByExpirationMonth(callOps), [callOps]);
 
+  const activeTabOps = subTab === 'PUT' ? putOps : callOps;
+  const activeOpenCount = activeTabOps.filter((o) => o.status === 'aberta').length;
+  const activeTotalPremium = activeTabOps.reduce((sum, o) => sum + o.premium_received, 0);
+  const activeCommittedCapital = activeTabOps
+    .filter((o) => o.status === 'aberta' && o.option_type === 'PUT')
+    .reduce((sum, o) => sum + o.strike * o.quantity, 0);
+
   async function handleClose(input: CloseOperationInput) {
     await closeOperation(input);
     setClosingOp(null);
@@ -245,6 +252,33 @@ export default function OperacoesPage() {
           </div>
         )}
       </div>
+
+      {mainTab === 'operacoes' && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xs text-muted-foreground">Abertas</span>
+            <span className="font-tabular text-sm font-semibold text-foreground">{activeOpenCount}</span>
+          </div>
+          <div className="h-4 w-px bg-border" />
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xs text-muted-foreground">Prêmio total</span>
+            <span className="font-tabular text-sm font-semibold text-accent">
+              {activeTotalPremium.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </span>
+          </div>
+          {subTab === 'PUT' && (
+            <>
+              <div className="h-4 w-px bg-border" />
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xs text-muted-foreground">Garantia comprometida</span>
+                <span className="font-tabular text-sm font-semibold text-foreground">
+                  {activeCommittedCapital.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {mainTab === 'acoes' ? (
         <MyStocksTab />
