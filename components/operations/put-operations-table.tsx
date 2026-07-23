@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { WeekRangePicker } from '@/components/operations/week-range-picker';
 import { DatePickerField } from '@/components/operations/date-picker-field';
 import { ExerciseRiskGauge } from '@/components/operations/exercise-risk-gauge';
+import { RiskGaugeSpeedometer } from '@/components/operations/risk-gauge-speedometer';
+import { computeRollRecommendation } from '@/lib/risk/roll-recommendation';
 import { formatBRL, formatPct, formatNumber, formatDate, parseBRNumber, cn } from '@/lib/utils';
 import {
   updateOperationFields,
@@ -277,6 +279,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
             <Th>Delta</Th>
             <Th>Distância do strike</Th>
             <Th>Risco</Th>
+            <Th>Recomendação</Th>
             <Th>Teto</Th>
             <Th>Spread</Th>
             <Th>Garantia</Th>
@@ -477,6 +480,11 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                 {/* Risco — badge Dentro/Fora do dinheiro + barra visual Cotação vs Strike */}
                 <Td width={144}>
                   <ExerciseRiskGauge strike={r.strike} quote={r.quote} optionType="PUT" />
+                </Td>
+
+                {/* Recomendação — velocímetro + rolar ou manter, baseado em Cotação x Strike */}
+                <Td width={100}>
+                  <RiskGaugeSpeedometer recommendation={computeRollRecommendation(r.strike, r.quote, 'PUT')} />
                 </Td>
 
                 {/* Teto */}

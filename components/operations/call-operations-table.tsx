@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { WeekRangePicker } from '@/components/operations/week-range-picker';
 import { DatePickerField } from '@/components/operations/date-picker-field';
 import { ExerciseRiskGauge } from '@/components/operations/exercise-risk-gauge';
+import { RiskGaugeSpeedometer } from '@/components/operations/risk-gauge-speedometer';
+import { computeRollRecommendation } from '@/lib/risk/roll-recommendation';
 import { formatBRL, formatPct, formatNumber, formatDate, parseBRNumber, cn } from '@/lib/utils';
 import {
   updateOperationFields,
@@ -263,6 +265,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
             <Th>Lucro/Prejuízo</Th>
             <Th>Distância</Th>
             <Th>Risco</Th>
+            <Th>Recomendação</Th>
             <Th>Taxa</Th>
             <Th>Prêmio Recompra</Th>
             <Th>Total Recompra</Th>
@@ -399,6 +402,9 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                 </Td>
                 <Td width={144}>
                   <ExerciseRiskGauge strike={r.strike} quote={r.quote} optionType="CALL" />
+                </Td>
+                <Td width={100}>
+                  <RiskGaugeSpeedometer recommendation={computeRollRecommendation(r.strike, r.quote, 'CALL')} />
                 </Td>
                 <Td>
                   <span className="font-tabular text-[11.5px] text-accent">{formatPct(r.rate * 100, 2)}</span>
