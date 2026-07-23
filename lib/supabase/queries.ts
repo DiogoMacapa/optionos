@@ -17,6 +17,7 @@ import type {
   CommissionSummary,
   CalculatorRow,
   CalculatorSettings,
+  Goal,
 } from '@/lib/types/database';
 
 // ---------------------------------------------------------------
@@ -660,4 +661,46 @@ export async function updateCalculatorSettings(id: string, cash: string): Promis
   const { data, error } = await supabase.from('calculator_settings').update({ cash }).eq('id', id).select('*').single();
   if (error) throw error;
   return data;
+}
+
+// ---------------------------------------------------------------
+// Goals (objetivos)
+// ---------------------------------------------------------------
+export async function listGoals(): Promise<Goal[]> {
+  const { data, error } = await supabase.from('goals').select('*').eq('active', true).order('created_at', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createGoal(input: {
+  name: string;
+  targetType: Goal['target_type'];
+  targetValue: number;
+  deadline?: string | null;
+  currentValue?: number | null;
+}): Promise<Goal> {
+  const { data, error } = await supabase
+    .from('goals')
+    .insert({
+      name: input.name,
+      target_type: input.targetType,
+      target_value: input.targetValue,
+      deadline: input.deadline ?? null,
+      current_value: input.currentValue ?? null,
+    })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateGoal(id: string, patch: Partial<Pick<Goal, 'name' | 'target_value' | 'deadline' | 'current_value'>>): Promise<Goal> {
+  const { data, error } = await supabase.from('goals').update(patch).eq('id', id).select('*').single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteGoal(id: string): Promise<void> {
+  const { error } = await supabase.from('goals').delete().eq('id', id);
+  if (error) throw error;
 }

@@ -284,3 +284,15 @@ export interface CalculatorSettings {
   cash: string;
   updated_at: string;
 }
+
+export interface Goal {
+  id: string;
+  name: string;
+  target_type: 'patrimonio' | 'renda_mensal' | 'personalizado';
+  target_value: number;
+  deadline: string | null;
+  current_value: number | null; // só relevante para target_type = 'personalizado'
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}

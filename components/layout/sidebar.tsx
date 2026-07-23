@@ -8,12 +8,14 @@ import {
   Calculator,
   Settings,
   TrendingUp,
+  Target,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutGrid },
   { href: '/operacoes', label: 'Operações', icon: Layers },
+  { href: '/objetivos', label: 'Objetivos', icon: Target },
   { href: '/calculadoras', label: 'Calculadoras', icon: Calculator },
   { href: '/configuracoes', label: 'Configurações', icon: Settings },
 ];
