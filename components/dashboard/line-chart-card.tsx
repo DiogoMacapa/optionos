@@ -1,6 +1,6 @@
 'use client';
 
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { formatBRL, formatDate } from '@/lib/utils';
 
@@ -24,6 +24,8 @@ export function LineChartCard({
   valueFormatter = formatBRL,
   emptyLabel = 'Sem dados suficientes ainda.',
 }: LineChartCardProps) {
+  const gradientId = `line-gradient-${title.replace(/\s+/g, '-')}`;
+
   return (
     <Card>
       <CardHeader>
@@ -36,7 +38,13 @@ export function LineChartCard({
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity={0.32} />
+                  <stop offset="100%" stopColor={color} stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
               <XAxis
                 dataKey="date"
@@ -64,15 +72,16 @@ export function LineChartCard({
                 labelFormatter={(v) => formatDate(v as string)}
                 formatter={(v) => [valueFormatter(Number(v)), '']}
               />
-              <Line
+              <Area
                 type="monotone"
                 dataKey="value"
                 stroke={color}
                 strokeWidth={2}
+                fill={`url(#${gradientId})`}
                 dot={false}
                 activeDot={{ r: 4 }}
               />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         )}
       </CardContent>

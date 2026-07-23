@@ -16,6 +16,7 @@ import {
   Handshake,
 } from 'lucide-react';
 import { KpiCard } from '@/components/dashboard/kpi-card';
+import { PatrimonyHeroCard } from '@/components/dashboard/patrimony-hero-card';
 import { LineChartCard } from '@/components/dashboard/line-chart-card';
 import { PieChartCard } from '@/components/dashboard/pie-chart-card';
 import { BarChartCard } from '@/components/dashboard/bar-chart-card';
@@ -225,6 +226,14 @@ export default function DashboardPage() {
         </div>
       )}
 
+      <PatrimonyHeroCard
+        currentEquity={kpis.currentEquity}
+        totalProfit={kpis.totalProfit}
+        successRatePct={kpis.successRatePct}
+        equitySeries={equitySeries}
+        onProfitClick={() => setDetailKind('profit')}
+      />
+
       <IrCreditPanel irLossToOffset={strategySettings?.ir_loss_to_offset ?? 0} />
 
       <GoalsSummaryPanel currentEquity={kpis.currentEquity} operations={operations} />
@@ -244,13 +253,6 @@ export default function DashboardPage() {
 
       {/* KPIs superiores */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KpiCard
-          label="Lucro Total (líquido)"
-          value={formatBRL(kpis.totalProfit)}
-          icon={TrendingUp}
-          accent={kpis.totalProfit >= 0 ? 'accent' : 'danger'}
-          onClick={() => setDetailKind('profit')}
-        />
         <KpiCard
           label="Prêmios Recebidos (bruto)"
           value={formatBRL(kpis.totalPremiums)}
@@ -280,7 +282,6 @@ export default function DashboardPage() {
           icon={Layers}
           onClick={() => router.push('/operacoes')}
         />
-        <KpiCard label="Taxa de Sucesso" value={formatPct(kpis.successRatePct, 1)} icon={Target} accent="accent" />
       </div>
 
       {/* Gráficos de evolução */}
