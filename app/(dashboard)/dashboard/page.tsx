@@ -23,6 +23,7 @@ import { BarChartCard } from '@/components/dashboard/bar-chart-card';
 import { IrCreditPanel } from '@/components/dashboard/ir-credit-panel';
 import { CommissionPanel } from '@/components/dashboard/commission-panel';
 import { WithdrawalPanel } from '@/components/dashboard/withdrawal-panel';
+import { EquityCompositionPanel } from '@/components/dashboard/equity-composition-panel';
 import { KpiDetailDialog } from '@/components/dashboard/kpi-detail-dialog';
 import { Button } from '@/components/ui/button';
 import { AiAnalysisDialog } from '@/components/shared/ai-analysis-dialog';
@@ -244,6 +245,15 @@ export default function DashboardPage() {
       <CommissionPanel entries={commissionEntries} onChanged={refetchDashboard} />
 
       <WithdrawalPanel entries={withdrawals} onChanged={refetchDashboard} />
+
+      <EquityCompositionPanel
+        initialEquity={kpis.initialEquity}
+        equityImpactingProfit={kpis.equityImpactingProfit}
+        totalCommissions={kpis.totalCommissions}
+        totalWithdrawn={kpis.totalWithdrawn}
+        emergencyReserve={kpis.emergencyReserve}
+        currentEquity={kpis.currentEquity}
+      />
 
       {/* KPIs superiores */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

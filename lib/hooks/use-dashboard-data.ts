@@ -167,6 +167,7 @@ export function computeKpis(
     currentEquity,
     initialEquity,
     totalProfit,
+    equityImpactingProfit,
     totalPremiums,
     totalIrPaid,
     totalWithdrawn,
