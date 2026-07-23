@@ -234,6 +234,57 @@ export default function DashboardPage() {
         onProfitClick={() => setDetailKind('profit')}
       />
 
+      {/* Aprendizado: estatísticas agregadas do histórico real (só operações fechadas) */}
+      <div>
+        <h2 className="text-sm font-semibold tracking-tight text-foreground">Aprendizado</h2>
+        <p className="text-xs text-muted-foreground">
+          Análise estatística do seu histórico — considera apenas operações já fechadas (encerradas, exercidas ou roladas).
+        </p>
+      </div>
+
+      {learning.operationsCount === 0 ? (
+        <div className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted-foreground">
+          Nenhuma operação fechada ainda. As estatísticas de aprendizado aparecem aqui assim que você encerrar, for exercido, ou rolar sua primeira operação.
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <KpiCard label="Taxa de Sucesso (fechadas)" value={formatPct(learning.successRatePct, 1)} icon={Target} accent="accent" />
+            <KpiCard
+              label="Lucro Médio"
+              value={formatBRL(learning.averageProfit)}
+              icon={TrendingUp}
+              accent={(learning.averageProfit ?? 0) >= 0 ? 'accent' : 'danger'}
+            />
+            <KpiCard label="Prêmio Médio" value={formatBRL(learning.averagePremium)} icon={Coins} />
+            <KpiCard label="Taxa de Exercício" value={formatPct(learning.exerciseRatePct, 1)} icon={Percent} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <BarChartCard
+              title="Melhor Delta (lucro médio por faixa)"
+              data={deltaBands}
+              layout="vertical"
+              colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
+              emptyLabel="Sem operações com Delta registrado ainda."
+            />
+            <BarChartCard
+              title="Melhor Dia da Semana para Operar (lucro médio)"
+              data={openingWeekdayStats}
+              layout="horizontal"
+              colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
+            />
+          </div>
+
+          <BarChartCard
+            title="Melhor Prazo até o Vencimento (lucro médio por faixa de dias)"
+            data={holdingPeriodStats}
+            layout="horizontal"
+            colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
+          />
+        </>
+      )}
+
       <IrCreditPanel irLossToOffset={strategySettings?.ir_loss_to_offset ?? 0} />
 
       <GoalsSummaryPanel currentEquity={kpis.currentEquity} operations={operations} />
@@ -319,57 +370,6 @@ export default function DashboardPage() {
           { name: 'Não Exercidas', value: nonExercisedCount, color: 'var(--accent)' },
         ]}
       />
-
-      {/* Aprendizado: estatísticas agregadas do histórico real (só operações fechadas) */}
-      <div>
-        <h2 className="text-sm font-semibold tracking-tight text-foreground">Aprendizado</h2>
-        <p className="text-xs text-muted-foreground">
-          Análise estatística do seu histórico — considera apenas operações já fechadas (encerradas, exercidas ou roladas).
-        </p>
-      </div>
-
-      {learning.operationsCount === 0 ? (
-        <div className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted-foreground">
-          Nenhuma operação fechada ainda. As estatísticas de aprendizado aparecem aqui assim que você encerrar, for exercido, ou rolar sua primeira operação.
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <KpiCard label="Prêmio Médio" value={formatBRL(learning.averagePremium)} icon={Coins} />
-            <KpiCard label="Taxa de Exercício" value={formatPct(learning.exerciseRatePct, 1)} icon={Percent} />
-            <KpiCard label="Taxa de Sucesso (fechadas)" value={formatPct(learning.successRatePct, 1)} icon={Target} accent="accent" />
-            <KpiCard
-              label="Lucro Médio"
-              value={formatBRL(learning.averageProfit)}
-              icon={TrendingUp}
-              accent={(learning.averageProfit ?? 0) >= 0 ? 'accent' : 'danger'}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <BarChartCard
-              title="Melhor Delta (lucro médio por faixa)"
-              data={deltaBands}
-              layout="vertical"
-              colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
-              emptyLabel="Sem operações com Delta registrado ainda."
-            />
-            <BarChartCard
-              title="Melhor Dia da Semana para Operar (lucro médio)"
-              data={openingWeekdayStats}
-              layout="horizontal"
-              colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
-            />
-          </div>
-
-          <BarChartCard
-            title="Melhor Prazo até o Vencimento (lucro médio por faixa de dias)"
-            data={holdingPeriodStats}
-            layout="horizontal"
-            colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
-          />
-        </>
-      )}
 
       <AiAnalysisDialog
         open={analyzeOpen}
