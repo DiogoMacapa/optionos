@@ -13,6 +13,7 @@ import {
   closeOperation,
   rollOperation,
   getStockPosition,
+  upsertStockPosition,
   createOperation,
   getSelfHolder,
   findOrCreateAsset,
@@ -161,6 +162,35 @@ export default function OperacoesPage() {
 
   async function handleClose(input: CloseOperationInput) {
     await closeOperation(input);
+
+    // Se foi uma PUT exercida, o usuário comprou as ações ao Strike —
+    // atualiza (ou cria) a posição em Minhas Ações automaticamente,
+    // recalculando o preço médio ponderado se já existir uma posição
+    // do mesmo ativo (confirmado com o usuário: junta com a existente,
+    // não é uma posição nova separada).
+    if (input.exercised && closingOp && closingOp.option_type === 'PUT') {
+      try {
+        const existing = await getStockPosition(closingOp.asset_id, closingOp.holder_id);
+        const existingQty = existing?.quantity ?? 0;
+        const existingAvg = existing?.average_price ?? 0;
+        const newQty = closingOp.quantity;
+        const newPrice = closingOp.strike;
+
+        const totalQty = existingQty + newQty;
+        const weightedAverage = totalQty > 0 ? (existingQty * existingAvg + newQty * newPrice) / totalQty : 0;
+
+        await upsertStockPosition({
+          assetId: closingOp.asset_id,
+          holderId: closingOp.holder_id,
+          quantity: totalQty,
+          averagePrice: Math.round(weightedAverage * 10000) / 10000,
+        });
+      } catch {
+        // Se falhar (ex: rede), não bloqueia o encerramento da operação em si —
+        // o usuário sempre pode ajustar Minhas Ações manualmente depois.
+      }
+    }
+
     setClosingOp(null);
     setClosingOpAveragePrice(null);
     await refresh();
