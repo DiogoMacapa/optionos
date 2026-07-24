@@ -267,11 +267,11 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
           <tr>
             <Th>Status</Th>
             <Th>Semana</Th>
+            <Th>Data</Th>
             <Th>Ativo</Th>
+            <Th>Ticker</Th>
             <Th>Cotação</Th>
             <Th>Será Exercido?</Th>
-            <Th>Ticker</Th>
-            <Th>Data</Th>
             <Th>Qnt</Th>
             <Th>Prêmio Venda</Th>
             <Th>Total Prêmio</Th>
@@ -321,6 +321,15 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                   )}
                 </Td>
 
+                {/* Data */}
+                <Td width={100}>
+                  {editable ? (
+                    <DatePickerField value={op.opened_at?.slice(0, 10) ?? null} onSelect={(date) => saveField(op, { opened_at: date })} />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-muted-foreground">{formatDate(op.opened_at)}</span>
+                  )}
+                </Td>
+
                 {/* Ativo */}
                 <Td width={78}>
                   {editable ? (
@@ -333,6 +342,21 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                     />
                   ) : (
                     <span className="font-tabular text-xs font-bold text-foreground">{op.asset?.ticker ?? '—'}</span>
+                  )}
+                </Td>
+
+                {/* Ticker — código da série de opção (ex: VALEW76), digitado manualmente */}
+                <Td width={90}>
+                  {editable ? (
+                    <InlineField
+                      key={`symbol-${op.id}-${op.option_symbol ?? ''}`}
+                      initialValue={op.option_symbol ?? ''}
+                      onCommit={(v) => saveField(op, { option_symbol: v.trim() === '' ? null : v.trim().toUpperCase() })}
+                      placeholder="VALEW76"
+                      width={78}
+                    />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-foreground">{op.option_symbol ?? '—'}</span>
                   )}
                 </Td>
 
@@ -375,30 +399,6 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                     })()
                   ) : (
                     <span className="text-[11px] text-faint-foreground">—</span>
-                  )}
-                </Td>
-
-                {/* Ticker — código da série de opção (ex: VALEW76), digitado manualmente */}
-                <Td width={90}>
-                  {editable ? (
-                    <InlineField
-                      key={`symbol-${op.id}-${op.option_symbol ?? ''}`}
-                      initialValue={op.option_symbol ?? ''}
-                      onCommit={(v) => saveField(op, { option_symbol: v.trim() === '' ? null : v.trim().toUpperCase() })}
-                      placeholder="VALEW76"
-                      width={78}
-                    />
-                  ) : (
-                    <span className="font-tabular text-[11.5px] text-foreground">{op.option_symbol ?? '—'}</span>
-                  )}
-                </Td>
-
-                {/* Data */}
-                <Td width={100}>
-                  {editable ? (
-                    <DatePickerField value={op.opened_at?.slice(0, 10) ?? null} onSelect={(date) => saveField(op, { opened_at: date })} />
-                  ) : (
-                    <span className="font-tabular text-[11.5px] text-muted-foreground">{formatDate(op.opened_at)}</span>
                   )}
                 </Td>
 

@@ -251,10 +251,10 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
           <tr>
             <Th>Status</Th>
             <Th>Semana</Th>
-            <Th>Ativo</Th>
-            <Th>Cotação</Th>
-            <Th>Ticker</Th>
             <Th>Data</Th>
+            <Th>Ativo</Th>
+            <Th>Ticker</Th>
+            <Th>Cotação</Th>
             <Th>Qnt</Th>
             <Th>Prêmio Venda</Th>
             <Th>Total Prêmio</Th>
@@ -297,11 +297,31 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                     <span className="font-tabular text-[11.5px] text-muted-foreground">{op.week_label ?? '—'}</span>
                   )}
                 </Td>
+                <Td width={100}>
+                  {editable ? (
+                    <DatePickerField value={op.opened_at?.slice(0, 10) ?? null} onSelect={(date) => saveField(op, { opened_at: date })} />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-muted-foreground">{formatDate(op.opened_at)}</span>
+                  )}
+                </Td>
                 <Td width={78}>
                   {editable ? (
                     <InlineField key={`ativo-${op.id}-${op.asset?.ticker ?? ''}`} initialValue={op.asset?.ticker ?? ''} onCommit={(v) => saveTicker(op, v)} placeholder="BPAC11" width={68} />
                   ) : (
                     <span className="font-tabular text-xs font-bold text-foreground">{op.asset?.ticker ?? '—'}</span>
+                  )}
+                </Td>
+                <Td width={90}>
+                  {editable ? (
+                    <InlineField
+                      key={`symbol-${op.id}-${op.option_symbol ?? ''}`}
+                      initialValue={op.option_symbol ?? ''}
+                      onCommit={(v) => saveField(op, { option_symbol: v.trim() === '' ? null : v.trim().toUpperCase() })}
+                      placeholder="BPACW56"
+                      width={78}
+                    />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-foreground">{op.option_symbol ?? '—'}</span>
                   )}
                 </Td>
                 <Td width={92}>
@@ -325,26 +345,6 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                     </div>
                   ) : (
                     <span className="font-tabular text-[11.5px] text-muted-foreground">{formatNumber(op.reference_quote, 2)}</span>
-                  )}
-                </Td>
-                <Td width={90}>
-                  {editable ? (
-                    <InlineField
-                      key={`symbol-${op.id}-${op.option_symbol ?? ''}`}
-                      initialValue={op.option_symbol ?? ''}
-                      onCommit={(v) => saveField(op, { option_symbol: v.trim() === '' ? null : v.trim().toUpperCase() })}
-                      placeholder="BPACW56"
-                      width={78}
-                    />
-                  ) : (
-                    <span className="font-tabular text-[11.5px] text-foreground">{op.option_symbol ?? '—'}</span>
-                  )}
-                </Td>
-                <Td width={100}>
-                  {editable ? (
-                    <DatePickerField value={op.opened_at?.slice(0, 10) ?? null} onSelect={(date) => saveField(op, { opened_at: date })} />
-                  ) : (
-                    <span className="font-tabular text-[11.5px] text-muted-foreground">{formatDate(op.opened_at)}</span>
                   )}
                 </Td>
                 <Td width={70}>
