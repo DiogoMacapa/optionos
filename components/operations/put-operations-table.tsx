@@ -361,10 +361,18 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                   )}
                 </Td>
 
-                {/* Será Exercido? — projeção baseada em strike vs cotação atual (informativo, não editável) */}
+                {/* Será Exercido? — projeção baseada em Cotação x Strike (informativo, não editável).
+                    Usa a mesma régua de 3 níveis do velocímetro de Recomendação (não um teste binário
+                    "já passou do strike ou não" — isso ignorava operações muito próximas, tipo poucos
+                    centavos de spread, que já merecem alerta mesmo tecnicamente ainda seguras). */}
                 <Td>
                   {r.quote !== null && r.quote !== undefined ? (
-                    <Badge variant={r.quote < r.strike ? 'danger' : 'success'}>{r.quote < r.strike ? 'Provável' : 'Improvável'}</Badge>
+                    (() => {
+                      const rec = computeRollRecommendation(r.strike, r.quote, 'PUT');
+                      const badgeVariant = rec.level === 'roll' ? 'danger' : rec.level === 'watch' ? 'warning' : 'success';
+                      const label = rec.level === 'roll' ? 'Provável' : rec.level === 'watch' ? 'Atenção' : 'Improvável';
+                      return <Badge variant={badgeVariant}>{label}</Badge>;
+                    })()
                   ) : (
                     <span className="text-[11px] text-faint-foreground">—</span>
                   )}
