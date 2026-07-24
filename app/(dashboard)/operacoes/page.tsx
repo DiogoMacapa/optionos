@@ -7,6 +7,7 @@ import { PutOperationsTable } from '@/components/operations/put-operations-table
 import { CallOperationsTable } from '@/components/operations/call-operations-table';
 import { CloseOperationDialog } from '@/components/operations/close-operation-dialog';
 import { MyStocksTab } from '@/components/operations/my-stocks-tab';
+import { MarketStatusBadge } from '@/components/shared/market-status-badge';
 import {
   listOperations,
   closeOperation,
@@ -17,10 +18,12 @@ import {
   findOrCreateAsset,
   listWithdrawals,
   getStrategySettings,
+  updateOperationFields,
   type CloseOperationInput,
   type NewOperationInput,
 } from '@/lib/supabase/queries';
 import type { Operation, Withdrawal, StrategySettings } from '@/lib/types/database';
+import { findOperationsNeedingExerciseCheck, shouldMarkAsExercised } from '@/lib/market-hours/exercise-check';
 
 export default function OperacoesPage() {
   const [mainTab, setMainTab] = useState<'operacoes' | 'acoes'>('operacoes');
@@ -80,6 +83,55 @@ export default function OperacoesPage() {
     }
     return map;
   }, [withdrawals]);
+
+  // Verificação automática de exercício: ao carregar a tela, checa
+  // operações com vencimento já passado e ainda sem "Exercido?"
+  // classificado. Busca a cotação de fechamento e marca "Sim" só se
+  // realmente ITM — nunca marca "Não" sozinho (usuário decide o
+  // resto manualmente, como combinado). Roda uma vez por carregamento
+  // de tela, não em toda atualização, para não gastar cota da API
+  // à toa.
+  const [autoCheckedIds, setAutoCheckedIds] = useState<Set<string>>(new Set());
+  const [autoCheckResult, setAutoCheckResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (loading || operations.length === 0) return;
+    const candidates = findOperationsNeedingExerciseCheck(operations).filter((op) => !autoCheckedIds.has(op.id));
+    if (candidates.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const markedTickers: string[] = [];
+      for (const op of candidates) {
+        if (cancelled) return;
+        const ticker = op.asset?.ticker;
+        if (!ticker) continue;
+        try {
+          const res = await fetch(`/api/quote?ticker=${encodeURIComponent(ticker)}`);
+          if (!res.ok) continue;
+          const data = await res.json();
+          const closingQuote = Number(data.price);
+          if (!Number.isFinite(closingQuote)) continue;
+          if (shouldMarkAsExercised(op, closingQuote)) {
+            await updateOperationFields(op.id, { exercised_label: 'Sim', reference_quote: closingQuote });
+            markedTickers.push(ticker);
+          }
+        } catch {
+          // Falha silenciosa por operação — não trava a checagem das demais.
+        }
+      }
+      if (cancelled) return;
+      setAutoCheckedIds((prev) => new Set([...prev, ...candidates.map((c) => c.id)]));
+      if (markedTickers.length > 0) {
+        setAutoCheckResult(`Marcado como exercido automaticamente: ${markedTickers.join(', ')} (confira e ajuste se precisar).`);
+        await refresh();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, operations, autoCheckedIds, refresh]);
 
   const filteredByHolder = useMemo(
     () => (holderFilter === 'todos' ? operations : operations.filter((o) => o.holder_id === holderFilter)),
@@ -166,10 +218,22 @@ export default function OperacoesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">Operações</h1>
-        <p className="text-sm text-muted-foreground">Agrupadas por mês de vencimento — fiel à sua planilha, com automações.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">Operações</h1>
+          <p className="text-sm text-muted-foreground">Agrupadas por mês de vencimento — fiel à sua planilha, com automações.</p>
+        </div>
+        <MarketStatusBadge />
       </div>
+
+      {autoCheckResult && (
+        <div className="flex items-center justify-between rounded-lg border border-warning/25 bg-warning-muted px-4 py-2 text-xs text-warning">
+          <span>{autoCheckResult}</span>
+          <button onClick={() => setAutoCheckResult(null)} className="text-warning/70 hover:text-warning">
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">

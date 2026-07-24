@@ -28,6 +28,7 @@ import { EquityCompositionPanel } from '@/components/dashboard/equity-compositio
 import { KpiDetailDialog } from '@/components/dashboard/kpi-detail-dialog';
 import { Button } from '@/components/ui/button';
 import { AiAnalysisDialog } from '@/components/shared/ai-analysis-dialog';
+import { MarketStatusBadge } from '@/components/shared/market-status-badge';
 import { useDashboardData, computeKpis, filterByHolder, computeEquitySeries } from '@/lib/hooks/use-dashboard-data';
 import { buildPortfolioAnalysisPrompt } from '@/lib/ai/prompt-builder';
 import { formatBRL, formatPct } from '@/lib/utils';
@@ -170,6 +171,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <MarketStatusBadge />
           {holders.length > 1 && (
             <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-0.5">
               <button

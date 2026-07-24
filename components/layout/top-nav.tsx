@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutGrid, Layers, Calculator, Settings, TrendingUp, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MarketStatusBadge } from '@/components/shared/market-status-badge';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutGrid },
@@ -32,26 +33,29 @@ export function TopNav() {
           <span className="text-sm font-semibold tracking-tight">OptionOS</span>
         </div>
 
-        <nav className="flex items-center gap-1">
-          {NAV_ITEMS.map((item) => {
-            const active = pathname?.startsWith(item.href);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                  active
-                    ? 'bg-accent-muted text-accent'
-                    : 'text-muted-foreground hover:bg-surface-hover hover:text-foreground'
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" strokeWidth={2} />
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="flex items-center gap-3">
+          <MarketStatusBadge />
+          <div className="flex items-center gap-1">
+            {NAV_ITEMS.map((item) => {
+              const active = pathname?.startsWith(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                    active
+                      ? 'bg-accent-muted text-accent'
+                      : 'text-muted-foreground hover:bg-surface-hover hover:text-foreground'
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" strokeWidth={2} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
         </nav>
       </div>
     </header>
