@@ -1,13 +1,8 @@
 import { supabase } from '@/lib/supabase/client';
 import type {
   Asset,
-  MarketSnapshot,
-  OptionChainEntry,
-  Opportunity,
   Operation,
-  ScoreWeights,
   StrategySettings,
-  ScoreBreakdown,
   Holder,
   StockPosition,
   Withdrawal,
@@ -52,124 +47,8 @@ export async function updateAssetCeiling(assetId: string, ceilingPrice: number |
 }
 
 // ---------------------------------------------------------------
-// Market snapshots (gráfico)
+// Strategy settings
 // ---------------------------------------------------------------
-export interface NewSnapshotInput {
-  assetId: string;
-  source: MarketSnapshot['source'];
-  values: Partial<
-    Pick<
-      MarketSnapshot,
-      | 'last_price'
-      | 'change_abs'
-      | 'change_pct'
-      | 'day_low'
-      | 'day_high'
-      | 'week52_low'
-      | 'week52_high'
-      | 'open_price'
-      | 'high_price'
-      | 'low_price'
-      | 'close_price'
-      | 'bb_upper'
-      | 'bb_middle'
-      | 'bb_lower'
-      | 'rsi14'
-      | 'macd_line'
-      | 'macd_signal'
-      | 'macd_histogram'
-      | 'trend'
-    >
-  >;
-  ocrConfidence?: number | null;
-  rawOcrText?: string | null;
-  manuallyConfirmed: boolean;
-}
-
-export async function createMarketSnapshot(input: NewSnapshotInput): Promise<MarketSnapshot> {
-  const { data, error } = await supabase
-    .from('market_snapshots')
-    .insert({
-      asset_id: input.assetId,
-      source: input.source,
-      ...input.values,
-      ocr_confidence: input.ocrConfidence ?? null,
-      raw_ocr_text: input.rawOcrText ?? null,
-      manually_confirmed: input.manuallyConfirmed,
-    })
-    .select('*')
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-export async function latestSnapshotForAsset(assetId: string): Promise<MarketSnapshot | null> {
-  const { data, error } = await supabase
-    .from('market_snapshots')
-    .select('*')
-    .eq('asset_id', assetId)
-    .order('captured_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
-}
-
-// ---------------------------------------------------------------
-// Option chain (book de opções)
-// ---------------------------------------------------------------
-export interface NewOptionChainRowInput {
-  assetId: string;
-  snapshotId: string | null;
-  optionType: 'PUT' | 'CALL';
-  strike: number;
-  expiration: string;
-  premium: number;
-  bid: number | null;
-  ask: number | null;
-  delta: number | null;
-  openInterest: number | null;
-  dailyVolume: number | null;
-  ocrConfidence: number | null;
-  manuallyConfirmed: boolean;
-}
-
-export async function insertOptionChainRows(rows: NewOptionChainRowInput[]): Promise<OptionChainEntry[]> {
-  const payload = rows.map((r) => ({
-    asset_id: r.assetId,
-    snapshot_id: r.snapshotId,
-    option_type: r.optionType,
-    strike: r.strike,
-    expiration: r.expiration,
-    premium: r.premium,
-    bid: r.bid,
-    ask: r.ask,
-    delta: r.delta,
-    open_interest: r.openInterest,
-    daily_volume: r.dailyVolume,
-    ocr_confidence: r.ocrConfidence,
-    manually_confirmed: r.manuallyConfirmed,
-  }));
-  const { data, error } = await supabase.from('option_chain_entries').insert(payload).select('*');
-  if (error) throw error;
-  return data ?? [];
-}
-
-// ---------------------------------------------------------------
-// Score weights / strategy settings
-// ---------------------------------------------------------------
-export async function getActiveScoreWeights(): Promise<ScoreWeights> {
-  const { data, error } = await supabase.from('score_weights').select('*').eq('is_active', true).limit(1).single();
-  if (error) throw error;
-  return data;
-}
-
-export async function updateScoreWeights(id: string, patch: Partial<ScoreWeights>): Promise<ScoreWeights> {
-  const { data, error } = await supabase.from('score_weights').update(patch).eq('id', id).select('*').single();
-  if (error) throw error;
-  return data;
-}
-
 export async function getStrategySettings(): Promise<StrategySettings> {
   const { data, error } = await supabase.from('strategy_settings').select('*').limit(1).single();
   if (error) throw error;
@@ -180,53 +59,6 @@ export async function updateStrategySettings(id: string, patch: Partial<Strategy
   const { data, error } = await supabase.from('strategy_settings').update(patch).eq('id', id).select('*').single();
   if (error) throw error;
   return data;
-}
-
-// ---------------------------------------------------------------
-// Opportunities
-// ---------------------------------------------------------------
-export interface NewOpportunityInput {
-  optionChainEntryId: string;
-  assetId: string;
-  score: number;
-  stars: number;
-  efficiencyPct: number;
-  breakdown: ScoreBreakdown;
-  weightsUsedId: string;
-}
-
-export async function createOpportunity(input: NewOpportunityInput): Promise<Opportunity> {
-  const { data, error } = await supabase
-    .from('opportunities')
-    .insert({
-      option_chain_entry_id: input.optionChainEntryId,
-      asset_id: input.assetId,
-      score: input.score,
-      stars: input.stars,
-      efficiency_pct: input.efficiencyPct,
-      score_breakdown: input.breakdown,
-      weights_used_id: input.weightsUsedId,
-      status: 'ativa',
-    })
-    .select('*')
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-export async function listActiveOpportunities(): Promise<Opportunity[]> {
-  const { data, error } = await supabase
-    .from('opportunities')
-    .select('*, asset:assets(*), option_chain_entry:option_chain_entries(*)')
-    .eq('status', 'ativa')
-    .order('score', { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as unknown as Opportunity[];
-}
-
-export async function discardOpportunity(id: string): Promise<void> {
-  const { error } = await supabase.from('opportunities').update({ status: 'descartada' }).eq('id', id);
-  if (error) throw error;
 }
 
 // ---------------------------------------------------------------

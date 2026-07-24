@@ -6,44 +6,8 @@
 // chat de IA (Claude, etc). Zero chave, zero custo recorrente.
 // ============================================================
 
-import type { Opportunity, Operation } from '@/lib/types/database';
+import type { Operation } from '@/lib/types/database';
 import { formatBRL, formatNumber, formatDate } from '@/lib/utils';
-
-export function buildOperationAnalysisPrompt(opportunity: Opportunity): string {
-  const entry = opportunity.option_chain_entry;
-  const asset = opportunity.asset;
-
-  return `Analise esta operação de venda de opção (estratégia: ${entry?.option_type === 'PUT' ? 'PUT Cash Secured' : 'Covered Call'}). Antes de concluir, pesquise na internet informações recentes sobre ${asset?.ticker ?? 'o ativo'} que possam afetar essa operação até o vencimento: guerra/conflitos geopolíticos relevantes para o setor, data de divulgação de resultados (se cair antes do vencimento), pagamento de proventos/dividendos anunciado ou esperado, e qualquer notícia relevante do período. Toda informação de contexto é importante para decidir se vale a pena abrir a operação.
-
-Ativo: ${asset?.ticker ?? '—'}
-Tipo: ${entry?.option_type ?? '—'}
-Strike: ${formatNumber(entry?.strike)}
-Vencimento: ${formatDate(entry?.expiration)}
-Prêmio: ${formatBRL(entry?.premium)}
-Delta: ${formatNumber(entry?.delta, 3)}
-Bid/Ask: ${formatNumber(entry?.bid)} / ${formatNumber(entry?.ask)}
-Volume diário: ${entry?.daily_volume ?? '—'}
-Open Interest: ${entry?.open_interest ?? '—'}
-
-Score do sistema: ${formatNumber(opportunity.score, 1)}/100
-Eficiência: ${formatNumber(opportunity.efficiency_pct, 1)}%
-Breakdown do score: ${
-    opportunity.score_breakdown
-      ? Object.entries(opportunity.score_breakdown)
-          .map(([k, v]) => `${k}: ${formatNumber(v as number, 1)}`)
-          .join(', ')
-      : '—'
-  }
-
-Considere que minha estratégia prioriza: maior prêmio possível, menor risco de exercício, boa liquidez e distância adequada até o strike.
-
-Na resposta, seja objetivo e coeso. Traga, nesta ordem:
-1. Contexto de mercado relevante encontrado na pesquisa (ou "nada relevante encontrado")
-2. Probabilidade de a operação ser exercida até o vencimento, e por quê
-3. Pontos fortes e pontos fracos
-4. Riscos específicos desta operação (incluindo os do contexto pesquisado)
-5. Recomendação final objetiva: vale a pena executar ou não`;
-}
 
 export function buildPortfolioAnalysisPrompt(operations: Operation[]): string {
   const open = operations.filter((o) => o.status === 'aberta');
