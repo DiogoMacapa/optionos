@@ -170,6 +170,7 @@ export async function closeOperation(input: CloseOperationInput): Promise<Operat
       net_profit: input.netProfit,
       ir_amount: input.irAmount,
       exercised: input.exercised,
+      exercised_label: input.exercised ? 'Sim' : 'Não',
       gross_result: input.grossResult ?? null,
       ir_base: input.irBase ?? null,
       efficiency_pct: input.efficiencyPct ?? null,
