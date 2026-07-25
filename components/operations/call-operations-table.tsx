@@ -44,22 +44,32 @@ interface CallOperationsTableProps {
  *   - IR sobre o prêmio BRUTO quando não exercida; sobre
  *     (Prêmio + (Strike−PM)×Qtd) quando exercida
  */
+/** Arredonda para 2 casas decimais — evita erro de ponto flutuante acumulado em valores monetários (mesma função já usada em PutOperationsTable, duplicada aqui porque cada tabela é um módulo isolado). */
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+/** Arredonda para 4 casas decimais (mesma escala usada no banco para valores por ação). */
+function round4(n: number): number {
+  return Math.round((n + Number.EPSILON) * 10000) / 10000;
+}
+
 function calcCallRow(op: Operation, averagePrice: number | null, irFrozen: boolean) {
   const quote = op.reference_quote;
   const strike = op.strike;
-  const premium = op.quantity > 0 ? op.premium_received / op.quantity : 0; // Prêmio Venda (por ação)
+  const premium = op.quantity > 0 ? round4(op.premium_received / op.quantity) : 0; // Prêmio Venda (por ação)
   const exercised = op.exercised_label === 'Sim';
 
-  const spread = quote !== null && quote !== undefined ? quote - strike : null;
+  const spread = quote !== null && quote !== undefined ? round2(quote - strike) : null;
   const distance = quote !== null && quote !== undefined && quote !== 0 ? (quote - strike) / quote : null;
   const rate = quote !== null && quote !== undefined && quote !== 0 ? premium / quote : 0; // Taxa = Prêmio ÷ Cotação
 
-  const lucroPrejuizoPorAcao = averagePrice !== null ? strike - averagePrice : null; // por ação
+  const lucroPrejuizoPorAcao = averagePrice !== null ? round2(strike - averagePrice) : null; // por ação
   const stockSaleResult = exercised && averagePrice !== null ? calculateStockSaleResult(strike, averagePrice, op.quantity) : 0;
 
-  const totalPremium = op.premium_received;
+  const totalPremium = round2(op.premium_received);
   const buybackPerShare = op.buyback_premium;
-  const totalBuyback = buybackPerShare !== null && buybackPerShare !== undefined ? buybackPerShare * op.quantity : null;
+  const totalBuyback = buybackPerShare !== null && buybackPerShare !== undefined ? round2(buybackPerShare * op.quantity) : null;
 
   let ir: number | null = null;
   let netProfit: number | null = null;
@@ -75,16 +85,16 @@ function calcCallRow(op: Operation, averagePrice: number | null, irFrozen: boole
         strikeVsAveragePriceResult: stockSaleResult,
         irFrozen,
       });
-      resultado = live.grossResult;
-      ir = live.ir;
-      netProfit = live.netProfit;
-      efficiency = live.efficiencyPct;
+      resultado = round2(live.grossResult);
+      ir = round2(live.ir);
+      netProfit = round2(live.netProfit);
+      efficiency = round2(live.efficiencyPct);
     } else if (totalBuyback !== null) {
       const live = calculateNetProfit({ optionType: 'CALL', premiumReceived: totalPremium, buybackCost: totalBuyback, irFrozen });
-      resultado = live.grossResult;
-      ir = live.ir;
-      netProfit = live.netProfit;
-      efficiency = live.efficiencyPct;
+      resultado = round2(live.grossResult);
+      ir = round2(live.ir);
+      netProfit = round2(live.netProfit);
+      efficiency = round2(live.efficiencyPct);
     }
   } else {
     resultado = op.gross_result ?? null;

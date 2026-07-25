@@ -198,6 +198,11 @@ export function computeKpis(
 // antes do primeiro evento real (ou hoje, se não houver nenhum) —
 // sem isso, com poucos eventos o gráfico ficava com 1 ponto só e
 // não desenhava linha nenhuma (LineChartCard exige 2+ pontos).
+//
+// Só soma operações com counts_toward_equity=true — mesmo filtro já
+// usado em computeKpis (equityImpactingProfit). Sem isso, se o
+// usuário marcar uma operação como "Histórico" no futuro, o valor
+// final do gráfico divergiria do card "Patrimônio Atual".
 // ------------------------------------------------------------
 export function computeEquitySeries(
   initialEquity: number | null,
@@ -208,7 +213,7 @@ export function computeEquitySeries(
   if (initialEquity === null) return [];
 
   const closedChronological = [...operations]
-    .filter((o) => o.status !== 'aberta' && o.net_profit !== null && o.closed_at)
+    .filter((o) => o.status !== 'aberta' && o.net_profit !== null && o.closed_at && o.counts_toward_equity)
     .sort((a, b) => new Date(a.closed_at as string).getTime() - new Date(b.closed_at as string).getTime());
 
   type Event = { date: string; delta: number };

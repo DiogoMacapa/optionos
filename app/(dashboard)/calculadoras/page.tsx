@@ -13,6 +13,7 @@ import {
   updateCalculatorRow,
   deleteCalculatorRow,
   getCalculatorSettings,
+  getStrategySettings,
   updateCalculatorSettings,
 } from '@/lib/supabase/queries';
 import type { CalculatorRow } from '@/lib/types/database';
@@ -22,7 +23,7 @@ const SAVE_DEBOUNCE_MS = 500;
 
 type RowField = 'ticker' | 'quote' | 'strike' | 'ceiling' | 'premium';
 
-function calcRow(row: CalculatorRow, cash: number) {
+function calcRow(row: CalculatorRow, cash: number, irFrozen: boolean) {
   const strike = parseBRNumber(row.strike);
   const premium = parseBRNumber(row.premium);
   const ceiling = row.ceiling.trim() === '' ? null : parseBRNumber(row.ceiling);
@@ -31,7 +32,7 @@ function calcRow(row: CalculatorRow, cash: number) {
   const quantity = Math.floor(rawQty / ROUND_LOT) * ROUND_LOT;
   const guarantee = strike * quantity; // Garantia = capital necessário para a PUT
   const totalPremium = premium * quantity;
-  const ir = totalPremium * 0.15;
+  const ir = irFrozen ? 0 : totalPremium * 0.15;
   const netProfit = totalPremium - ir;
 
   // Taxa: igual à fórmula original da planilha do usuário (=Total Prêmio / Caixa) —
@@ -56,6 +57,7 @@ export default function CalculadorasPage() {
   const [rows, setRows] = useState<CalculatorRow[]>([]);
   const [quoteStatus, setQuoteStatus] = useState<Record<string, 'loading' | 'error' | null>>({});
   const [quoteError, setQuoteError] = useState<Record<string, string>>({});
+  const [irFrozen, setIrFrozen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,7 +65,11 @@ export default function CalculadorasPage() {
       setLoading(true);
       setError(null);
       try {
-        const [rowsData, settings] = await Promise.all([listCalculatorRows(), getCalculatorSettings()]);
+        const [rowsData, settings, strategySettings] = await Promise.all([
+          listCalculatorRows(),
+          getCalculatorSettings(),
+          getStrategySettings(),
+        ]);
         let finalRows = rowsData;
         // Garante ao menos 3 linhas na primeira visita.
         if (finalRows.length === 0) {
@@ -73,6 +79,7 @@ export default function CalculadorasPage() {
         setRows(finalRows);
         setSettingsId(settings.id);
         setCashRaw(settings.cash);
+        setIrFrozen(strategySettings.ir_frozen);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Erro ao carregar a calculadora.');
       } finally {
@@ -192,6 +199,12 @@ export default function CalculadorasPage() {
         </Button>
       </div>
 
+      {irFrozen && (
+        <div className="rounded-lg border border-warning/25 bg-warning-muted px-4 py-2 text-xs text-warning">
+          IR Congelado está ativo em Configurações — os cálculos abaixo não descontam os 15% de IR.
+        </div>
+      )}
+
       {error && (
         <div className="rounded-lg border border-danger/20 bg-danger-muted px-4 py-3 text-sm text-danger">{error}</div>
       )}
@@ -229,7 +242,7 @@ export default function CalculadorasPage() {
           </thead>
           <tbody>
             {rows
-              .map((row) => ({ row, r: calcRow(row, cash) }))
+              .map((row) => ({ row, r: calcRow(row, cash, irFrozen) }))
               .sort((a, b) => b.r.totalPremium - a.r.totalPremium)
               .map(({ row, r }) => {
               return (

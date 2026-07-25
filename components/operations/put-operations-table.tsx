@@ -401,6 +401,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                   ) : r.quote !== null && r.quote !== undefined ? (
                     (() => {
                       const rec = computeRollRecommendation(r.strike, r.quote, 'PUT');
+                      if (rec.level === 'unknown') return <span className="text-[11px] text-faint-foreground">—</span>;
                       const badgeVariant = rec.level === 'roll' ? 'danger' : rec.level === 'watch' ? 'warning' : 'success';
                       const label = rec.level === 'roll' ? 'Provável' : rec.level === 'watch' ? 'Atenção' : 'Improvável';
                       return <Badge variant={badgeVariant}>{label}</Badge>;

@@ -196,8 +196,7 @@ export interface RollOperationInput {
 
 /** Rola uma operação: encerra a original (custo = recompra) e abre uma nova ligada a ela. */
 export async function rollOperation(input: RollOperationInput): Promise<{ closed: Operation; opened: Operation }> {
-  const net = -input.buybackCost; // custo de recompra é saída de caixa nesta perna
-  const closed = await closeOperationRolled(input.originalId, input.buybackCost, net);
+  const closed = await closeOperationRolled(input.originalId, input.buybackCost);
   const opened = await createOperation(input.newOperation);
 
   const { error: linkError } = await supabase
@@ -215,13 +214,28 @@ export async function rollOperation(input: RollOperationInput): Promise<{ closed
   return { closed, opened };
 }
 
-async function closeOperationRolled(id: string, buybackCost: number, netProfit: number): Promise<Operation> {
+/**
+ * Encerra a operação original de uma rolagem. O resultado líquido é
+ * o PRÊMIO que já foi recebido na abertura dessa operação (já salvo
+ * em premium_received) MENOS o custo de recompra desta perna — não
+ * é só o custo de recompra isolado (bug corrigido: uma rolagem
+ * estava gerando net_profit sempre negativo, mesmo quando a
+ * operação foi lucrativa, porque o prêmio original não entrava na
+ * conta do fechamento).
+ */
+async function closeOperationRolled(id: string, buybackCost: number): Promise<Operation> {
+  const { data: current, error: fetchError } = await supabase.from('operations').select('premium_received').eq('id', id).single();
+  if (fetchError) throw fetchError;
+
+  const netProfit = current.premium_received - buybackCost;
+
   const { data, error } = await supabase
     .from('operations')
     .update({
       status: 'rolada',
       closed_at: new Date().toISOString(),
       close_price: buybackCost,
+      gross_result: netProfit,
       net_profit: netProfit,
       ir_amount: 0,
     })

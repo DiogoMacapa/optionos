@@ -29,7 +29,7 @@ export function RiskGaugeSpeedometer({ recommendation }: RiskGaugeSpeedometerPro
   // Ângulo do ponteiro: -90deg (extremo esquerdo/vermelho) a +90deg (extremo direito/verde).
   const angle = -90 + (gaugePct / 100) * 180;
 
-  const color = level === 'roll' ? 'var(--danger)' : level === 'watch' ? 'var(--warning)' : 'var(--accent)';
+  const color = level === 'roll' ? 'var(--danger)' : level === 'watch' ? 'var(--warning)' : level === 'safe' ? 'var(--accent)' : 'var(--faint-foreground)';
 
   return (
     <div className="flex w-[92px] flex-col items-center gap-0.5">

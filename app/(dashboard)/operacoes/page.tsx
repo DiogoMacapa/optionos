@@ -174,7 +174,11 @@ export default function OperacoesPage() {
         const existingQty = existing?.quantity ?? 0;
         const existingAvg = existing?.average_price ?? 0;
         const newQty = closingOp.quantity;
-        const newPrice = closingOp.strike;
+        // Custo real de aquisição: Strike menos o prêmio recebido por ação
+        // (o prêmio já embolsado reduz o custo efetivo de compra — não é
+        // simplesmente o Strike bruto, senão o preço médio ficaria inflado).
+        const premiumPerShare = newQty > 0 ? closingOp.premium_received / newQty : 0;
+        const newPrice = closingOp.strike - premiumPerShare;
 
         const totalQty = existingQty + newQty;
         const weightedAverage = totalQty > 0 ? (existingQty * existingAvg + newQty * newPrice) / totalQty : 0;

@@ -1,8 +1,8 @@
-export type RiskLevel = 'safe' | 'watch' | 'roll';
+export type RiskLevel = 'safe' | 'watch' | 'roll' | 'unknown';
 
 export interface RollRecommendation {
   level: RiskLevel;
-  label: string; // "Manter" | "Atenção" | "Considere rolar"
+  label: string; // "Manter" | "Atenção" | "Considere rolar" | "Sem cotação"
   distancePct: number | null; // distância % da cotação até o strike (positivo = OTM, negativo = ITM)
   isITM: boolean;
 }
@@ -21,7 +21,7 @@ export interface RollRecommendation {
  */
 export function computeRollRecommendation(strike: number, quote: number | null, optionType: 'PUT' | 'CALL'): RollRecommendation {
   if (quote === null || quote === undefined || quote === 0 || strike <= 0) {
-    return { level: 'safe', label: 'Sem cotação', distancePct: null, isITM: false };
+    return { level: 'unknown', label: 'Sem cotação', distancePct: null, isITM: false };
   }
 
   const isITM = optionType === 'PUT' ? quote < strike : quote > strike;
