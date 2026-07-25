@@ -393,7 +393,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                   {!editable ? (
                     op.exercised_label ? (
                       <Badge variant={op.exercised_label === 'Sim' ? 'danger' : op.exercised_label === 'Rolagem' ? 'warning' : 'success'}>
-                        {op.exercised_label}
+                        {op.exercised_label === 'Sim' ? 'Exercido' : op.exercised_label}
                       </Badge>
                     ) : (
                       <span className="text-[11px] text-faint-foreground">—</span>
@@ -631,7 +631,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                     )}
                   >
                     <option value="">—</option>
-                    <option value="Sim">Sim</option>
+                    <option value="Sim">Exercido</option>
                     <option value="Não">Não</option>
                     <option value="Rolagem">Rolagem</option>
                   </select>

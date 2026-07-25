@@ -101,26 +101,37 @@ export function MyStocksTab() {
         <p className="text-sm text-faint-foreground">Nenhuma posição cadastrada ainda.</p>
       )}
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         {positions.map((p) => (
-          <div
-            key={p.id}
-            className="flex items-center justify-between rounded-xl border border-border bg-surface px-3.5 py-3"
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="font-tabular text-sm font-bold text-foreground">{p.asset?.ticker ?? '—'}</span>
-              <Badge>{holderName(p.holder_id)}</Badge>
-            </div>
-            <div className="flex items-center gap-4 font-tabular text-xs">
-              <span className="text-muted-foreground">
-                Qtd <span className="text-foreground">{p.quantity.toLocaleString('pt-BR')}</span>
-              </span>
-              <span className="text-muted-foreground">
-                PM <span className="text-accent">{formatBRL(p.average_price)}</span>
-              </span>
+          <div key={p.id} className="overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-accent-muted via-accent-muted/40 to-surface px-5 py-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/15">
+                  <span className="font-tabular text-[10px] font-bold text-accent">{(p.asset?.ticker ?? '—').slice(0, 4)}</span>
+                </div>
+                <div>
+                  <div className="font-tabular text-base font-bold text-foreground">{p.asset?.ticker ?? '—'}</div>
+                  <Badge>{holderName(p.holder_id)}</Badge>
+                </div>
+              </div>
               <button onClick={() => handleRemove(p.id)} className="text-faint-foreground hover:text-danger">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Quantidade</div>
+                <div className="mt-0.5 font-tabular text-lg font-semibold text-foreground">{p.quantity.toLocaleString('pt-BR')}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Preço Médio</div>
+                <div className="mt-0.5 font-tabular text-lg font-semibold text-accent">{formatBRL(p.average_price)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Total Investido</div>
+                <div className="mt-0.5 font-tabular text-lg font-semibold text-foreground">{formatBRL(p.quantity * p.average_price)}</div>
+              </div>
             </div>
           </div>
         ))}
