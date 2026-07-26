@@ -49,6 +49,7 @@ export default function DashboardPage() {
     strategySettings,
     withdrawals: allWithdrawals,
     commissionEntries,
+    stockPositions,
     loading,
     error,
     refetch: refetchDashboard,
@@ -57,7 +58,7 @@ export default function DashboardPage() {
   const [holderFilter, setHolderFilter] = useState<string | null>(null); // null = todos
 
   const { operations, withdrawals } = filterByHolder(allOperations, holderFilter, allWithdrawals);
-  const kpis = computeKpis(operations, strategySettings, withdrawals, commissionEntries);
+  const kpis = computeKpis(operations, strategySettings, withdrawals, commissionEntries, stockPositions);
 
   const closedChronological = [...operations]
     .filter((o) => o.status !== 'aberta' && o.net_profit !== null && o.closed_at)

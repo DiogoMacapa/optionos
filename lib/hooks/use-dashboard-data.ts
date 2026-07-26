@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import type { Operation, EquitySnapshot, Holder, StrategySettings, Withdrawal, CommissionEntry } from '@/lib/types/database';
+import type { Operation, EquitySnapshot, Holder, StrategySettings, Withdrawal, CommissionEntry, StockPosition } from '@/lib/types/database';
 
 export interface DashboardData {
   operations: Operation[];
@@ -11,6 +11,7 @@ export interface DashboardData {
   strategySettings: StrategySettings | null;
   withdrawals: Withdrawal[];
   commissionEntries: CommissionEntry[];
+  stockPositions: StockPosition[];
   loading: boolean;
   error: string | null;
   refetch: () => void;
@@ -23,6 +24,7 @@ export function useDashboardData(): DashboardData {
   const [strategySettings, setStrategySettings] = useState<StrategySettings | null>(null);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [commissionEntries, setCommissionEntries] = useState<CommissionEntry[]>([]);
+  const [stockPositions, setStockPositions] = useState<StockPosition[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refetchCounter, setRefetchCounter] = useState(0);
@@ -36,13 +38,14 @@ export function useDashboardData(): DashboardData {
       setLoading(true);
       setError(null);
 
-      const [opsRes, equityRes, holdersRes, settingsRes, withdrawalsRes, commissionRes] = await Promise.all([
+      const [opsRes, equityRes, holdersRes, settingsRes, withdrawalsRes, commissionRes, stockPositionsRes] = await Promise.all([
         supabase.from('operations').select('*, asset:assets(*), holder:holders(*)').order('opened_at', { ascending: false }),
         supabase.from('equity_snapshots').select('*').order('recorded_at', { ascending: true }),
         supabase.from('holders').select('*').eq('active', true).order('is_self', { ascending: false }),
         supabase.from('strategy_settings').select('*').limit(1).single(),
         supabase.from('withdrawals').select('*'),
         supabase.from('commission_entries').select('*').order('received_at', { ascending: true }),
+        supabase.from('stock_positions').select('*, asset:assets(*)').eq('active', true),
       ]);
 
       if (cancelled) return;
@@ -73,6 +76,10 @@ export function useDashboardData(): DashboardData {
         setCommissionEntries((commissionRes.data ?? []) as CommissionEntry[]);
       }
 
+      if (!stockPositionsRes.error) {
+        setStockPositions((stockPositionsRes.data ?? []) as unknown as StockPosition[]);
+      }
+
       setLoading(false);
     }
 
@@ -82,7 +89,7 @@ export function useDashboardData(): DashboardData {
     };
   }, [refetchCounter]);
 
-  return { operations, equityHistory, holders, strategySettings, withdrawals, commissionEntries, loading, error, refetch };
+  return { operations, equityHistory, holders, strategySettings, withdrawals, commissionEntries, stockPositions, loading, error, refetch };
 }
 
 // ------------------------------------------------------------
@@ -125,7 +132,8 @@ export function computeKpis(
   operations: Operation[],
   strategySettings: StrategySettings | null,
   withdrawals: Withdrawal[] = [],
-  commissionEntries: CommissionEntry[] = []
+  commissionEntries: CommissionEntry[] = [],
+  stockPositions: StockPosition[] = []
 ) {
   const openOps = operations.filter((o) => o.status === 'aberta');
   const closedOps = operations.filter((o) => o.status !== 'aberta' && o.net_profit !== null);
@@ -136,13 +144,23 @@ export function computeKpis(
   const totalPremiums = operations.reduce((sum, o) => sum + (o.premium_received || 0), 0);
   const totalProfit = operations.reduce((sum, o) => sum + (o.net_profit || 0), 0);
   const totalIrPaid = operations.reduce((sum, o) => sum + (o.ir_amount && (o.gross_result ?? 0) > 0 ? o.ir_amount : 0), 0);
-  // Capital Comprometido = Garantia real (Strike × Qnt) das PUTs abertas —
-  // não usa o campo 'Caixa' (committed_capital), que é digitado manualmente
-  // e pode ficar desatualizado. CALL não soma nada aqui: a garantia de uma
-  // Covered Call já são as ações que o usuário possui, não caixa novo.
-  const committedCapital = openOps
+  // Capital Comprometido = Garantia real (Strike × Qnt) das PUTs abertas +
+  // valor já desembolsado em ações que o usuário possui (Minhas Ações —
+  // seja via exercício de PUT ou compra manual). Sem isso, dinheiro que já
+  // virou ações aparecia como "Caixa Livre" disponível, quando na
+  // verdade não está mais líquido para novas operações. Não usa o campo
+  // 'Caixa' (committed_capital) das operações, que é digitado manualmente
+  // e pode ficar desatualizado. CALL não soma nada da garantia de opção
+  // em si: a garantia de uma Covered Call já são as ações que o usuário
+  // possui, cobertas aqui pelo total desembolsado em Minhas Ações.
+  const openPutCommitted = openOps
     .filter((o) => o.option_type === 'PUT')
     .reduce((sum, o) => sum + o.strike * o.quantity, 0);
+  const stockPositionsCommitted = stockPositions.reduce(
+    (sum, p) => sum + (p.total_invested ?? p.quantity * p.average_price),
+    0
+  );
+  const committedCapital = openPutCommitted + stockPositionsCommitted;
   const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0);
   const totalCommissions = commissionEntries.reduce((sum, c) => sum + c.amount, 0);
 
