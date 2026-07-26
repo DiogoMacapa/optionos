@@ -173,21 +173,28 @@ export default function OperacoesPage() {
         const existing = await getStockPosition(closingOp.asset_id, closingOp.holder_id);
         const existingQty = existing?.quantity ?? 0;
         const existingAvg = existing?.average_price ?? 0;
+        const existingTotalInvested = existing?.total_invested ?? existingQty * existingAvg;
         const newQty = closingOp.quantity;
-        // Custo real de aquisição: Strike menos o prêmio recebido por ação
-        // (o prêmio já embolsado reduz o custo efetivo de compra — não é
-        // simplesmente o Strike bruto, senão o preço médio ficaria inflado).
+        // Preço Médio: custo AJUSTADO (Strike menos prêmio por ação) — usado
+        // para calcular o resultado de uma futura Covered Call (Strike da
+        // CALL menos este PM). Total Investido: valor BRUTO que de fato saiu
+        // do caixa na liquidação (Strike × Qtd, sem descontar prêmio) —
+        // confirmado com o usuário que quer os dois números lado a lado,
+        // já que respondem perguntas diferentes.
         const premiumPerShare = newQty > 0 ? closingOp.premium_received / newQty : 0;
-        const newPrice = closingOp.strike - premiumPerShare;
+        const newAdjustedPrice = closingOp.strike - premiumPerShare;
+        const newGrossInvested = closingOp.strike * newQty;
 
         const totalQty = existingQty + newQty;
-        const weightedAverage = totalQty > 0 ? (existingQty * existingAvg + newQty * newPrice) / totalQty : 0;
+        const weightedAverage = totalQty > 0 ? (existingQty * existingAvg + newQty * newAdjustedPrice) / totalQty : 0;
+        const totalInvested = existingTotalInvested + newGrossInvested;
 
         await upsertStockPosition({
           assetId: closingOp.asset_id,
           holderId: closingOp.holder_id,
           quantity: totalQty,
           averagePrice: Math.round(weightedAverage * 10000) / 10000,
+          totalInvested: Math.round(totalInvested * 100) / 100,
         });
       } catch {
         // Se falhar (ex: rede), não bloqueia o encerramento da operação em si —

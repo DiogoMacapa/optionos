@@ -22,6 +22,7 @@ export function MyStocksTab() {
   const [holderId, setHolderId] = useState('');
   const [qty, setQty] = useState('');
   const [avg, setAvg] = useState('');
+  const [totalInvestedText, setTotalInvestedText] = useState('');
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -70,10 +71,12 @@ export function MyStocksTab() {
         holderId,
         quantity: Math.round(parseBRNumber(qty)),
         averagePrice: parseBRNumber(avg),
+        totalInvested: totalInvestedText.trim() ? parseBRNumber(totalInvestedText) : null,
       });
       setTicker('');
       setQty('');
       setAvg('');
+      setTotalInvestedText('');
       await refresh();
     } finally {
       setSaving(false);
@@ -125,12 +128,18 @@ export function MyStocksTab() {
                 <div className="mt-0.5 font-tabular text-lg font-semibold text-foreground">{p.quantity.toLocaleString('pt-BR')}</div>
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Preço Médio</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground" title="Custo ajustado (Strike − Prêmio) — usado no cálculo de uma futura Covered Call">
+                  Preço Médio
+                </div>
                 <div className="mt-0.5 font-tabular text-lg font-semibold text-accent">{formatBRL(p.average_price)}</div>
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Total Investido</div>
-                <div className="mt-0.5 font-tabular text-lg font-semibold text-foreground">{formatBRL(p.quantity * p.average_price)}</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground" title="Valor bruto que saiu do caixa (Strike × Qtd, sem descontar prêmio)">
+                  Total Desembolsado
+                </div>
+                <div className="mt-0.5 font-tabular text-lg font-semibold text-foreground">
+                  {formatBRL(p.total_invested ?? p.quantity * p.average_price)}
+                </div>
               </div>
             </div>
           </div>
@@ -168,6 +177,15 @@ export function MyStocksTab() {
             <div className="space-y-1">
               <Label>Preço médio (R$)</Label>
               <Input className="font-tabular" value={avg} onChange={(e) => setAvg(e.target.value)} placeholder="57,84" />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label>Total desembolsado (R$) — opcional, se diferente de Qtd × PM</Label>
+              <Input
+                className="font-tabular"
+                value={totalInvestedText}
+                onChange={(e) => setTotalInvestedText(e.target.value)}
+                placeholder="deixe em branco para usar Qtd × PM"
+              />
             </div>
           </div>
           <Button size="sm" onClick={handleAdd} disabled={saving || !ticker.trim() || !qty || !avg}>

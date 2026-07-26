@@ -347,12 +347,13 @@ export async function upsertStockPosition(input: {
   holderId: string;
   quantity: number;
   averagePrice: number;
+  totalInvested?: number | null;
 }): Promise<StockPosition> {
   const existing = await getStockPosition(input.assetId, input.holderId);
   if (existing) {
     const { data, error } = await supabase
       .from('stock_positions')
-      .update({ quantity: input.quantity, average_price: input.averagePrice })
+      .update({ quantity: input.quantity, average_price: input.averagePrice, total_invested: input.totalInvested ?? null })
       .eq('id', existing.id)
       .select('*')
       .single();
@@ -366,6 +367,7 @@ export async function upsertStockPosition(input: {
       holder_id: input.holderId,
       quantity: input.quantity,
       average_price: input.averagePrice,
+      total_invested: input.totalInvested ?? null,
     })
     .select('*')
     .single();

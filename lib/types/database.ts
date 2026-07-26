@@ -229,6 +229,7 @@ export interface StockPosition {
   holder_id: string;
   quantity: number;
   average_price: number;
+  total_invested: number | null; // valor bruto desembolsado (Strike × Qtd, sem descontar prêmio) — null se digitado manualmente sem informar
   active: boolean;
   opened_at: string;
   closed_at: string | null;
