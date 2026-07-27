@@ -404,7 +404,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                 </Td>
                 <Td>
                   <span className={cn('font-tabular text-[11.5px]', (r.lucroPrejuizoPorAcao ?? 0) >= 0 ? 'text-accent' : 'text-danger')}>
-                    {r.lucroPrejuizoPorAcao !== null ? formatNumber(r.lucroPrejuizoPorAcao, 2) : '—'}
+                    {r.lucroPrejuizoPorAcao !== null ? formatNumber(round2(r.lucroPrejuizoPorAcao * op.quantity), 2) : '—'}
                   </span>
                 </Td>
                 <Td>

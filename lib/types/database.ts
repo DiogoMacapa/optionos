@@ -240,6 +240,21 @@ export interface StockPosition {
   holder?: Holder;
 }
 
+export interface StockSaleHistory {
+  id: string;
+  asset_id: string;
+  holder_id: string;
+  operation_id: string | null;
+  quantity: number;
+  average_price: number;
+  strike: number;
+  gross_result: number;
+  sold_at: string;
+  created_at: string;
+
+  asset?: Asset;
+}
+
 export interface Withdrawal {
   id: string;
   holder_id: string;

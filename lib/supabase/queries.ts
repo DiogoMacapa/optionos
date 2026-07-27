@@ -5,6 +5,7 @@ import type {
   StrategySettings,
   Holder,
   StockPosition,
+  StockSaleHistory,
   Withdrawal,
   CommissionEntry,
   NamedStrategy,
@@ -381,6 +382,71 @@ export async function closeStockPosition(id: string): Promise<void> {
     .update({ active: false, closed_at: new Date().toISOString().slice(0, 10) })
     .eq('id', id);
   if (error) throw error;
+}
+
+/**
+ * Dá baixa numa posição quando uma Covered Call é exercida — reduz
+ * (ou zera) a quantidade na quantidade exercida, e registra o
+ * resultado (lucro ou prejuízo) permanentemente em
+ * stock_sale_history, mesmo depois da posição zerar (confirmado com
+ * o usuário: essa informação não pode se perder do histórico).
+ * A quantidade em Total Desembolsado também é reduzida
+ * proporcionalmente, para manter o resto da posição consistente
+ * (se sobrar alguma).
+ */
+export async function reduceStockPositionOnCallExercise(input: {
+  assetId: string;
+  holderId: string;
+  operationId: string;
+  quantityExercised: number;
+  strike: number;
+}): Promise<void> {
+  const position = await getStockPosition(input.assetId, input.holderId);
+  if (!position) return; // sem posição para dar baixa — nada a fazer
+
+  const averagePrice = position.average_price;
+  const grossResult = Math.round((input.strike - averagePrice) * input.quantityExercised * 100) / 100;
+
+  const { error: historyError } = await supabase.from('stock_sale_history').insert({
+    asset_id: input.assetId,
+    holder_id: input.holderId,
+    operation_id: input.operationId,
+    quantity: input.quantityExercised,
+    average_price: averagePrice,
+    strike: input.strike,
+    gross_result: grossResult,
+  });
+  if (historyError) throw historyError;
+
+  const remainingQty = position.quantity - input.quantityExercised;
+
+  if (remainingQty <= 0) {
+    const { error } = await supabase
+      .from('stock_positions')
+      .update({ quantity: 0, active: false, closed_at: new Date().toISOString().slice(0, 10) })
+      .eq('id', position.id);
+    if (error) throw error;
+  } else {
+    // Reduz o Total Desembolsado na mesma proporção da quantidade que saiu,
+    // mantendo o restante da posição consistente com o que já existia.
+    const currentTotalInvested = position.total_invested ?? position.quantity * averagePrice;
+    const proportionRemaining = remainingQty / position.quantity;
+    const newTotalInvested = Math.round(currentTotalInvested * proportionRemaining * 100) / 100;
+
+    const { error } = await supabase
+      .from('stock_positions')
+      .update({ quantity: remainingQty, total_invested: newTotalInvested })
+      .eq('id', position.id);
+    if (error) throw error;
+  }
+}
+
+export async function listStockSaleHistory(holderId?: string): Promise<StockSaleHistory[]> {
+  let query = supabase.from('stock_sale_history').select('*, asset:assets(*)').order('sold_at', { ascending: false });
+  if (holderId) query = query.eq('holder_id', holderId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []) as unknown as StockSaleHistory[];
 }
 
 // ---------------------------------------------------------------

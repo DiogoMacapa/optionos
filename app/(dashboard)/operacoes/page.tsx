@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Layers, Briefcase, Plus } from 'lucide-react';
+import { Layers, Plus } from 'lucide-react';
 import { MonthExpirationGroup, groupByExpirationMonth } from '@/components/operations/month-expiration-group';
 import { PutOperationsTable } from '@/components/operations/put-operations-table';
 import { CallOperationsTable } from '@/components/operations/call-operations-table';
@@ -14,6 +14,7 @@ import {
   rollOperation,
   getStockPosition,
   upsertStockPosition,
+  reduceStockPositionOnCallExercise,
   createOperation,
   getSelfHolder,
   findOrCreateAsset,
@@ -27,8 +28,7 @@ import type { Operation, Withdrawal, StrategySettings } from '@/lib/types/databa
 import { findOperationsNeedingExerciseCheck, shouldMarkAsExercised } from '@/lib/market-hours/exercise-check';
 
 export default function OperacoesPage() {
-  const [mainTab, setMainTab] = useState<'operacoes' | 'acoes'>('operacoes');
-  const [subTab, setSubTab] = useState<'PUT' | 'CALL'>('PUT');
+  const [subTab, setSubTab] = useState<'PUT' | 'CALL' | 'ACOES'>('PUT');
   const [operations, setOperations] = useState<Operation[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [strategySettings, setStrategySettings] = useState<StrategySettings | null>(null);
@@ -153,7 +153,7 @@ export default function OperacoesPage() {
   const putGrouped = useMemo(() => groupByExpirationMonth(putOps), [putOps]);
   const callGrouped = useMemo(() => groupByExpirationMonth(callOps), [callOps]);
 
-  const activeTabOps = subTab === 'PUT' ? putOps : callOps;
+  const activeTabOps = subTab === 'PUT' ? putOps : subTab === 'CALL' ? callOps : [];
   const activeOpenCount = activeTabOps.filter((o) => o.status === 'aberta').length;
   const activeTotalPremium = activeTabOps.reduce((sum, o) => sum + o.premium_received, 0);
   const activeCommittedCapital = activeTabOps
@@ -199,6 +199,24 @@ export default function OperacoesPage() {
       } catch {
         // Se falhar (ex: rede), não bloqueia o encerramento da operação em si —
         // o usuário sempre pode ajustar Minhas Ações manualmente depois.
+      }
+    } else if (input.exercised && closingOp && closingOp.option_type === 'CALL') {
+      // CALL exercida: o usuário vendeu as ações ao Strike — dá baixa na
+      // posição existente em Minhas Ações (só na quantidade desta operação,
+      // confirmado com o usuário: se ele tinha mais ações do que a CALL
+      // cobria, sobra o restante), e registra o resultado (lucro ou
+      // prejuízo) permanentemente em Histórico de Vendas de Ações — mesmo
+      // depois da posição zerar, esse registro não pode se perder.
+      try {
+        await reduceStockPositionOnCallExercise({
+          assetId: closingOp.asset_id,
+          holderId: closingOp.holder_id,
+          operationId: closingOp.id,
+          quantityExercised: closingOp.quantity,
+          strike: closingOp.strike,
+        });
+      } catch {
+        // Mesma tolerância a falha: não bloqueia o encerramento da operação.
       }
     }
 
@@ -278,28 +296,7 @@ export default function OperacoesPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex w-fit items-center gap-1 rounded-lg border border-border bg-surface p-1">
-            <button
-              onClick={() => setMainTab('operacoes')}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                mainTab === 'operacoes' ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
-              }`}
-            >
-              <Layers className="h-3.5 w-3.5" />
-              Operações
-            </button>
-            <button
-              onClick={() => setMainTab('acoes')}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                mainTab === 'acoes' ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
-              }`}
-            >
-              <Briefcase className="h-3.5 w-3.5" />
-              Minhas Ações
-            </button>
-          </div>
-
-          {mainTab === 'operacoes' && (
+          {subTab !== 'ACOES' && (
             <button
               onClick={() => handleAddOperation(subTab)}
               disabled={addingOperation}
@@ -311,8 +308,7 @@ export default function OperacoesPage() {
           )}
         </div>
 
-        {mainTab === 'operacoes' && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
             {holders.length > 1 && (
               <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-0.5">
                 <button
@@ -353,12 +349,19 @@ export default function OperacoesPage() {
               >
                 CALL
               </button>
+              <button
+                onClick={() => setSubTab('ACOES')}
+                className={`rounded-md px-4 py-1.5 text-xs font-bold transition-colors ${
+                  subTab === 'ACOES' ? 'bg-accent-muted text-accent' : 'text-muted-foreground hover:bg-surface-hover'
+                }`}
+              >
+                Minhas Ações
+              </button>
             </div>
           </div>
-        )}
       </div>
 
-      {mainTab === 'operacoes' && (
+      {subTab !== 'ACOES' && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
           <div className="flex items-baseline gap-1.5">
             <span className="text-xs text-muted-foreground">Abertas</span>
@@ -385,10 +388,7 @@ export default function OperacoesPage() {
         </div>
       )}
 
-      {mainTab === 'acoes' ? (
-        <MyStocksTab />
-      ) : (
-        <>
+      <>
           {error && (
             <div className="rounded-lg border border-danger/20 bg-danger-muted px-4 py-3 text-sm text-danger">{error}</div>
           )}
@@ -446,8 +446,9 @@ export default function OperacoesPage() {
               </div>
             </>
           )}
+
+          {subTab === 'ACOES' && <MyStocksTab />}
         </>
-      )}
 
       {closingOp && (
         <CloseOperationDialog

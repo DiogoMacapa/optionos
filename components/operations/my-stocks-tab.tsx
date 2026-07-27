@@ -7,12 +7,20 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { formatBRL, parseBRNumber } from '@/lib/utils';
-import { listStockPositions, upsertStockPosition, closeStockPosition, findOrCreateAsset, listHolders } from '@/lib/supabase/queries';
-import type { StockPosition, Holder } from '@/lib/types/database';
+import { formatBRL, formatDate, parseBRNumber, cn } from '@/lib/utils';
+import {
+  listStockPositions,
+  upsertStockPosition,
+  closeStockPosition,
+  findOrCreateAsset,
+  listHolders,
+  listStockSaleHistory,
+} from '@/lib/supabase/queries';
+import type { StockPosition, Holder, StockSaleHistory } from '@/lib/types/database';
 
 export function MyStocksTab() {
   const [positions, setPositions] = useState<StockPosition[]>([]);
+  const [saleHistory, setSaleHistory] = useState<StockSaleHistory[]>([]);
   const [holders, setHolders] = useState<Holder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,9 +36,10 @@ export function MyStocksTab() {
     setLoading(true);
     setError(null);
     try {
-      const [pos, hol] = await Promise.all([listStockPositions(), listHolders()]);
+      const [pos, hol, history] = await Promise.all([listStockPositions(), listHolders(), listStockSaleHistory()]);
       setPositions(pos);
       setHolders(hol);
+      setSaleHistory(history);
       setHolderId((prev) => prev || (hol.find((h) => h.is_self) ?? hol[0])?.id || '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar posições.');
@@ -45,10 +54,11 @@ export function MyStocksTab() {
       setLoading(true);
       setError(null);
       try {
-        const [pos, hol] = await Promise.all([listStockPositions(), listHolders()]);
+        const [pos, hol, history] = await Promise.all([listStockPositions(), listHolders(), listStockSaleHistory()]);
         if (cancelled) return;
         setPositions(pos);
         setHolders(hol);
+        setSaleHistory(history);
         setHolderId((prev) => prev || (hol.find((h) => h.is_self) ?? hol[0])?.id || '');
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Erro ao carregar posições.');
@@ -194,6 +204,32 @@ export function MyStocksTab() {
           </Button>
         </CardContent>
       </Card>
+
+      {saleHistory.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">Histórico de Vendas de Ações</h2>
+          <p className="text-xs text-muted-foreground">
+            Registro permanente de baixas por exercício de Covered Call — continua aqui mesmo depois da posição zerar.
+          </p>
+          <div className="mt-3 flex flex-col gap-1.5">
+            {saleHistory.map((h) => (
+              <div key={h.id} className="flex items-center justify-between rounded-lg border border-border bg-surface px-3.5 py-2.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="font-tabular text-sm font-bold text-foreground">{h.asset?.ticker ?? '—'}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {h.quantity.toLocaleString('pt-BR')} ações · PM {formatBRL(h.average_price)} → Strike {formatBRL(h.strike)}
+                  </span>
+                  <span className="text-[11px] text-faint-foreground">{formatDate(h.sold_at)}</span>
+                </div>
+                <span className={cn('font-tabular text-sm font-semibold', h.gross_result >= 0 ? 'text-accent' : 'text-danger')}>
+                  {h.gross_result >= 0 ? '+' : ''}
+                  {formatBRL(h.gross_result)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
