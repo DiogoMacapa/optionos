@@ -260,31 +260,31 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
         <thead>
           <tr>
             <Th>Status</Th>
-            <Th>Semana</Th>
-            <Th>Data</Th>
-            <Th>Ativo</Th>
-            <Th>Ticker</Th>
-            <Th>Cotação</Th>
-            <Th>Qnt</Th>
-            <Th>Prêmio Venda</Th>
+            <Th width={90}>Semana</Th>
+            <Th width={100}>Data</Th>
+            <Th width={78}>Ativo</Th>
+            <Th width={90}>Ticker</Th>
+            <Th width={92}>Cotação</Th>
+            <Th width={70}>Qnt</Th>
+            <Th width={80}>Prêmio Venda</Th>
             <Th>Total Prêmio</Th>
-            <Th>Strike</Th>
-            <Th>Delta</Th>
+            <Th width={80}>Strike</Th>
+            <Th width={70}>Delta</Th>
             <Th>Spread</Th>
             <Th>PM</Th>
             <Th>Lucro/Prejuízo</Th>
             <Th>Distância</Th>
-            <Th>Risco</Th>
-            <Th>Recomendação</Th>
+            <Th width={144}>Risco</Th>
+            <Th width={100}>Recomendação</Th>
             <Th>Taxa</Th>
-            <Th>Prêmio Recompra</Th>
+            <Th width={90}>Prêmio Recompra</Th>
             <Th>Total Recompra</Th>
             <Th>Resultado</Th>
             <Th>IR (15%)</Th>
             <Th>Lucro Final</Th>
             <Th>Eficiência</Th>
-            <Th>Prejuízo</Th>
-            <Th>Exercido?</Th>
+            <Th width={90}>Prejuízo</Th>
+            <Th width={100}>Exercido?</Th>
             <Th>Ações</Th>
           </tr>
         </thead>
@@ -374,7 +374,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                       width={56}
                     />
                   ) : (
-                    <span className="font-tabular text-[11.5px] text-muted-foreground">{formatNumber(r.premium, 2)}</span>
+                    <span className="font-tabular text-[11.5px] font-semibold text-accent">{formatNumber(r.premium, 2)}</span>
                   )}
                 </Td>
                 <Td>
@@ -384,7 +384,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                   {editable ? (
                     <InlineField key={`strike-${op.id}-${r.strike}`} initialValue={formatNumber(r.strike, 2)} onCommit={(v) => saveField(op, { strike: parseBRNumber(v) })} placeholder="0,00" width={56} />
                   ) : (
-                    <span className="font-tabular text-[11.5px] text-muted-foreground">{formatNumber(r.strike, 2)}</span>
+                    <span className="font-tabular text-[11.5px] font-semibold text-accent">{formatNumber(r.strike, 2)}</span>
                   )}
                 </Td>
                 <Td width={70}>
@@ -397,7 +397,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                   />
                 </Td>
                 <Td>
-                  <span className="font-tabular text-[11.5px] text-accent">{r.spread !== null ? formatNumber(r.spread, 2) : '—'}</span>
+                  <span className="font-tabular text-[11.5px] text-muted-foreground">{r.spread !== null ? formatNumber(r.spread, 2) : '—'}</span>
                 </Td>
                 <Td>
                   <span className="font-tabular text-[11.5px] text-foreground">{averagePrice !== null ? formatNumber(averagePrice, 2) : '—'}</span>
@@ -408,7 +408,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                   </span>
                 </Td>
                 <Td>
-                  <span className="font-tabular text-[11.5px] text-accent">{r.distance !== null ? formatPct(r.distance * 100, 2) : '—'}</span>
+                  <span className="font-tabular text-[11.5px] text-muted-foreground">{r.distance !== null ? formatPct(r.distance * 100, 2) : '—'}</span>
                 </Td>
                 <Td width={144}>
                   <ExerciseRiskGauge strike={r.strike} quote={r.quote} optionType="CALL" />
@@ -522,8 +522,15 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
   );
 }
 
-function Th({ children }: { children?: React.ReactNode }) {
-  return <th className="whitespace-nowrap border-b border-border bg-surface-elevated/40 px-1.5 pb-2 pt-1.5 text-left text-[9.5px] font-bold uppercase tracking-wide text-faint-foreground">{children}</th>;
+function Th({ children, width }: { children?: React.ReactNode; width?: number }) {
+  return (
+    <th
+      className="whitespace-nowrap border-b border-border bg-surface-elevated/40 px-1.5 pb-2 pt-1.5 text-left text-[9.5px] font-bold uppercase tracking-wide text-faint-foreground"
+      style={{ width }}
+    >
+      {children}
+    </th>
+  );
 }
 
 function Td({ children, width }: { children: React.ReactNode; width?: number }) {

@@ -266,35 +266,35 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
         <thead>
           <tr>
             <Th>Status</Th>
-            <Th>Semana</Th>
-            <Th>Data</Th>
-            <Th>Ativo</Th>
-            <Th>Ticker</Th>
-            <Th>Cotação</Th>
+            <Th width={90}>Semana</Th>
+            <Th width={100}>Data</Th>
+            <Th width={78}>Ativo</Th>
+            <Th width={90}>Ticker</Th>
+            <Th width={92}>Cotação</Th>
             <Th>Será Exercido?</Th>
-            <Th>Qnt</Th>
-            <Th>Prêmio Venda</Th>
+            <Th width={70}>Qnt</Th>
+            <Th width={80}>Prêmio Venda</Th>
             <Th>Total Prêmio</Th>
-            <Th>Strike</Th>
-            <Th>Delta</Th>
+            <Th width={80}>Strike</Th>
+            <Th width={70}>Delta</Th>
             <Th>Distância do strike</Th>
-            <Th>Risco</Th>
-            <Th>Recomendação</Th>
-            <Th>Teto</Th>
+            <Th width={144}>Risco</Th>
+            <Th width={100}>Recomendação</Th>
+            <Th width={130}>Teto</Th>
             <Th>Spread</Th>
             <Th>Garantia</Th>
-            <Th>Caixa</Th>
+            <Th width={100}>Caixa</Th>
             <Th>Tem Cobertura?</Th>
             <Th>Taxa (%)</Th>
             <Th>Vencimento</Th>
-            <Th>Valor Recompra</Th>
+            <Th width={90}>Valor Recompra</Th>
             <Th>Total Recompra</Th>
             <Th>Venda-Recompra</Th>
             <Th>IR (15%)</Th>
             <Th>Lucro Final</Th>
             <Th>Eficiência (%)</Th>
-            <Th>Prejuízo</Th>
-            <Th>Exercido?</Th>
+            <Th width={90}>Prejuízo</Th>
+            <Th width={100}>Exercido?</Th>
             <Th>Ações</Th>
           </tr>
         </thead>
@@ -448,7 +448,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                       width={56}
                     />
                   ) : (
-                    <span className="font-tabular text-[11.5px] text-muted-foreground">{formatNumber(r.premium, 2)}</span>
+                    <span className="font-tabular text-[11.5px] font-semibold text-accent">{formatNumber(r.premium, 2)}</span>
                   )}
                 </Td>
 
@@ -469,7 +469,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                       danger={r.isExpensive}
                     />
                   ) : (
-                    <span className={cn('font-tabular text-[11.5px]', r.isExpensive ? 'font-bold text-danger' : 'text-muted-foreground')}>
+                    <span className={cn('font-tabular text-[11.5px] font-semibold', r.isExpensive ? 'text-danger' : 'text-accent')}>
                       {formatNumber(r.strike, 2)}
                     </span>
                   )}
@@ -489,7 +489,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
 
                 {/* Distância do strike — calculado */}
                 <Td>
-                  <span className="font-tabular text-[11.5px] text-accent">
+                  <span className="font-tabular text-[11.5px] text-muted-foreground">
                     {r.distance !== null ? formatPct(r.distance * 100, 2) : '—'}
                   </span>
                 </Td>
@@ -520,7 +520,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
 
                 {/* Spread — calculado */}
                 <Td>
-                  <span className="font-tabular text-[11.5px] text-accent">{r.spread !== null ? formatNumber(r.spread, 2) : '—'}</span>
+                  <span className="font-tabular text-[11.5px] text-muted-foreground">{r.spread !== null ? formatNumber(r.spread, 2) : '—'}</span>
                 </Td>
 
                 {/* Garantia — calculado */}
@@ -701,9 +701,12 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
   );
 }
 
-function Th({ children }: { children?: React.ReactNode }) {
+function Th({ children, width }: { children?: React.ReactNode; width?: number }) {
   return (
-    <th className="whitespace-nowrap border-b border-border bg-surface-elevated/40 px-1.5 pb-2 pt-1.5 text-left text-[9.5px] font-bold uppercase tracking-wide text-faint-foreground">
+    <th
+      className="whitespace-nowrap border-b border-border bg-surface-elevated/40 px-1.5 pb-2 pt-1.5 text-left text-[9.5px] font-bold uppercase tracking-wide text-faint-foreground"
+      style={{ width }}
+    >
       {children}
     </th>
   );
