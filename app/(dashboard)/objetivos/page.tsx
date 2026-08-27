@@ -100,7 +100,7 @@ export default function ObjetivosPage() {
   }, []);
 
   const kpis = computeKpis(operations, strategySettings, withdrawals, commissionEntries);
-  const equitySeries = computeEquitySeries(kpis.initialEquity, operations, withdrawals, commissionEntries);
+  const equitySeries = computeEquitySeries(operations, withdrawals);
 
   function openCreateForm() {
     setEditingId(null);

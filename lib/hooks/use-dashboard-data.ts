@@ -173,19 +173,16 @@ export function computeKpis(
   const initialEquity = strategySettings?.initial_equity ?? null;
   const emergencyReserve = strategySettings?.emergency_reserve ?? 0;
 
-  // Só operações com counts_toward_equity=true somam ao patrimônio — evita
-  // contagem duplicada quando o Patrimônio Inicial já reflete o resultado
-  // de um histórico importado (ex: operações antigas de antes do sistema).
-  const equityImpactingProfit = closedOps
-    .filter((o) => o.counts_toward_equity)
-    .reduce((sum, o) => sum + (o.net_profit || 0), 0);
+  // Patrimônio Atual = soma do Lucro Líquido de TODAS as operações já
+  // fechadas (PUT e CALL) menos Saques — confirmado com o usuário: não
+  // depende mais do Patrimônio Inicial informado manualmente nem da
+  // Reserva de Emergência. Só operações FECHADAS entram na conta —
+  // abertas ainda não têm um resultado definitivo (só uma projeção ao
+  // vivo, que muda com a cotação).
+  const equityImpactingProfit = closedOps.reduce((sum, o) => sum + (o.net_profit || 0), 0);
+  const currentEquity = equityImpactingProfit - totalWithdrawn;
 
-  // Caixa disponível hoje: automático, sem depender de atualização manual.
-  // Comissões entram como caixa recebido, somando junto do lucro das operações.
-  const cashToday = initialEquity !== null ? initialEquity + equityImpactingProfit + totalCommissions - totalWithdrawn : null;
-
-  const freeCash = cashToday !== null ? Math.max(0, cashToday - committedCapital) : null;
-  const currentEquity = cashToday !== null ? cashToday + emergencyReserve : null;
+  const freeCash = Math.max(0, currentEquity - committedCapital);
 
   return {
     currentEquity,
@@ -206,46 +203,42 @@ export function computeKpis(
 }
 
 // ------------------------------------------------------------
-// Série histórica real do patrimônio: começa no Patrimônio Inicial e
-// evolui cronologicamente somando o lucro líquido de cada operação
-// fechada, comissões recebidas, e subtraindo saques na data em que
-// ocorreram. Reaproveitada pelo Dashboard (Evolução Patrimonial) e
-// pela tela de Objetivos (gráfico de projeção da meta).
+// Série histórica real do patrimônio: começa em zero e evolui
+// cronologicamente somando o lucro líquido de cada operação fechada
+// (PUT e CALL), subtraindo saques na data em que ocorreram.
+// Reaproveitada pelo Dashboard (gráfico embutido no card de
+// Patrimônio) e pela tela de Objetivos (gráfico de projeção da meta).
 //
-// Sempre inclui um ponto inicial fixo (Patrimônio Inicial), um dia
-// antes do primeiro evento real (ou hoje, se não houver nenhum) —
-// sem isso, com poucos eventos o gráfico ficava com 1 ponto só e
-// não desenhava linha nenhuma (LineChartCard exige 2+ pontos).
+// Consistente com computeKpis (currentEquity = soma de net_profit
+// das operações fechadas − saques, sem Patrimônio Inicial nem
+// comissões, confirmado com o usuário) — usa a mesma base de
+// cálculo, para o gráfico nunca terminar num valor diferente do
+// card que mostra o número final.
 //
-// Só soma operações com counts_toward_equity=true — mesmo filtro já
-// usado em computeKpis (equityImpactingProfit). Sem isso, se o
-// usuário marcar uma operação como "Histórico" no futuro, o valor
-// final do gráfico divergiria do card "Patrimônio Atual".
+// Sempre inclui um ponto inicial fixo em zero, um dia antes do
+// primeiro evento real (ou hoje, se não houver nenhum) — sem isso,
+// com poucos eventos o gráfico ficava com 1 ponto só e não
+// desenhava linha nenhuma (LineChartCard exige 2+ pontos).
 // ------------------------------------------------------------
 export function computeEquitySeries(
-  initialEquity: number | null,
   operations: Operation[],
-  withdrawals: Withdrawal[],
-  commissionEntries: CommissionEntry[]
+  withdrawals: Withdrawal[]
 ): { date: string; value: number }[] {
-  if (initialEquity === null) return [];
-
   const closedChronological = [...operations]
-    .filter((o) => o.status !== 'aberta' && o.net_profit !== null && o.closed_at && o.counts_toward_equity)
+    .filter((o) => o.status !== 'aberta' && o.net_profit !== null && o.closed_at)
     .sort((a, b) => new Date(a.closed_at as string).getTime() - new Date(b.closed_at as string).getTime());
 
   type Event = { date: string; delta: number };
   const events: Event[] = [
     ...closedChronological.map((o) => ({ date: (o.closed_at as string).slice(0, 10), delta: o.net_profit ?? 0 })),
     ...withdrawals.map((w) => ({ date: w.withdrawn_at, delta: -w.amount })),
-    ...commissionEntries.map((c) => ({ date: c.received_at, delta: c.amount })),
   ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const firstEventDate = events.length > 0 ? new Date(events[0].date) : new Date();
   const initialPointDate = new Date(firstEventDate);
   initialPointDate.setDate(initialPointDate.getDate() - 1);
 
-  const series: { date: string; value: number }[] = [{ date: initialPointDate.toISOString().slice(0, 10), value: initialEquity }];
+  const series: { date: string; value: number }[] = [{ date: initialPointDate.toISOString().slice(0, 10), value: 0 }];
 
   return events.reduce<{ date: string; value: number }[]>((acc, ev) => {
     const previous = acc[acc.length - 1].value;

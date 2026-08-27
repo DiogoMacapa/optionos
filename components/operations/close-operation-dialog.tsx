@@ -24,9 +24,25 @@ interface CloseOperationDialogProps {
   averagePrice?: number | null;
   /** IR congelado (Configurações) — enquanto true, toda operação encerrada tem IR = 0. */
   irFrozen?: boolean;
+  /** true quando a operação já está encerrada e o usuário está corrigindo o
+   * resultado registrado antes (ex: marcou "Não exercido" por engano). Não
+   * permite escolher rolagem (isso cria uma operação nova, não se aplica a
+   * uma edição retroativa) e mostra aviso para conferir Minhas Ações
+   * manualmente — o sistema não desfaz/reaplica esse efeito sozinho,
+   * porque entre o fechamento original e a edição pode ter havido outras
+   * mudanças na posição que o sistema não tem como saber com segurança. */
+  isEditing?: boolean;
 }
 
 type OutcomeType = 'expirou' | 'recomprou' | 'exercida' | 'rolou';
+
+/** Deriva o outcome inicial a partir dos dados já salvos, para pré-preencher o formulário em modo edição. */
+function inferOutcomeFromOperation(operation: Operation): OutcomeType {
+  if (operation.exercised_label === 'Sim') return 'exercida';
+  if (operation.exercised_label === 'Rolagem') return 'expirou'; // rolagem não é editável neste dialog
+  if (operation.close_price && operation.close_price > 0) return 'recomprou';
+  return 'expirou';
+}
 
 export function CloseOperationDialog({
   operation,
@@ -36,9 +52,14 @@ export function CloseOperationDialog({
   onRoll,
   averagePrice,
   irFrozen = false,
+  isEditing = false,
 }: CloseOperationDialogProps) {
-  const [outcome, setOutcome] = useState<OutcomeType>('expirou');
-  const [buybackCostPerShare, setBuybackCostPerShare] = useState('0');
+  const [outcome, setOutcome] = useState<OutcomeType>(() => (isEditing ? inferOutcomeFromOperation(operation) : 'expirou'));
+  const [buybackCostPerShare, setBuybackCostPerShare] = useState(() =>
+    isEditing && operation.quantity > 0 && operation.close_price
+      ? String(operation.close_price / operation.quantity).replace('.', ',')
+      : '0'
+  );
   const [saving, setSaving] = useState(false);
 
   // Campos da nova operação (rolagem)
@@ -134,7 +155,7 @@ export function CloseOperationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Encerrar operação — {operation.asset?.ticker}</DialogTitle>
+          <DialogTitle>{isEditing ? 'Editar resultado' : 'Encerrar operação'} — {operation.asset?.ticker}</DialogTitle>
           <DialogDescription>
             {operation.option_type} strike {operation.strike} · vence {new Date(operation.expiration).toLocaleDateString('pt-BR')}
             {hasCommission ? ` · titular: ${operation.holder!.name}` : ''}
@@ -142,6 +163,14 @@ export function CloseOperationDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {isEditing && (
+            <p className="rounded-lg border border-warning/30 bg-warning-muted px-3 py-2 text-xs text-warning">
+              Isso recalcula o Resultado, IR e Lucro Líquido desta operação. Não ajusta Minhas Ações
+              automaticamente — confira e corrija a posição manualmente se precisar, já que outras operações
+              podem ter mexido nela desde então.
+            </p>
+          )}
+
           <div className="space-y-1">
             <Label>O que aconteceu?</Label>
             <Select value={outcome} onValueChange={(v) => setOutcome(v as OutcomeType)}>
@@ -152,7 +181,7 @@ export function CloseOperationDialog({
                 <SelectItem value="expirou">Expirou sem valor (prêmio total capturado)</SelectItem>
                 <SelectItem value="recomprou">Recomprei antes do vencimento</SelectItem>
                 <SelectItem value="exercida">Fui exercido</SelectItem>
-                <SelectItem value="rolou">Rolei para outra opção</SelectItem>
+                {!isEditing && <SelectItem value="rolou">Rolei para outra opção</SelectItem>}
               </SelectContent>
             </Select>
             <p className="text-xs text-faint-foreground">
@@ -275,7 +304,7 @@ export function CloseOperationDialog({
               Cancelar
             </Button>
             <Button disabled={saving || (isRolling && !rollFormValid)} onClick={handleConfirm}>
-              {saving ? 'Salvando…' : isRolling ? 'Confirmar rolagem' : 'Confirmar encerramento'}
+              {saving ? 'Salvando…' : isRolling ? 'Confirmar rolagem' : isEditing ? 'Salvar edição' : 'Confirmar encerramento'}
             </Button>
           </div>
         </div>

@@ -12,8 +12,6 @@ import {
   Percent,
   Sparkles,
   Receipt,
-  AlertTriangle,
-  Handshake,
 } from 'lucide-react';
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { PatrimonyHeroCard } from '@/components/dashboard/patrimony-hero-card';
@@ -21,10 +19,8 @@ import { LineChartCard } from '@/components/dashboard/line-chart-card';
 import { PieChartCard } from '@/components/dashboard/pie-chart-card';
 import { BarChartCard } from '@/components/dashboard/bar-chart-card';
 import { IrCreditPanel } from '@/components/dashboard/ir-credit-panel';
-import { CommissionPanel } from '@/components/dashboard/commission-panel';
 import { GoalsSummaryPanel } from '@/components/dashboard/goals-summary-panel';
 import { WithdrawalPanel } from '@/components/dashboard/withdrawal-panel';
-import { EquityCompositionPanel } from '@/components/dashboard/equity-composition-panel';
 import { KpiDetailDialog } from '@/components/dashboard/kpi-detail-dialog';
 import { Button } from '@/components/ui/button';
 import { AiAnalysisDialog } from '@/components/shared/ai-analysis-dialog';
@@ -77,18 +73,10 @@ export default function DashboardPage() {
     return acc;
   }, []);
 
-  // Evolução Patrimonial: mostra a trajetória completa (histórico + operações
-  // novas), começando do Patrimônio Inicial informado. Diferente do KPI
-  // "Patrimônio Atual" (que só soma operações com counts_toward_equity=true,
-  // para não contar de novo um histórico já embutido no valor informado) —
-  // aqui é só visualização da trajetória, o usuário quer ver a curva completa.
-  const equitySeries = computeEquitySeries(kpis.initialEquity, operations, withdrawals, commissionEntries);
-
-  const commissionSeries = commissionEntries.reduce<{ date: string; value: number }[]>((acc, c) => {
-    const previous = acc.length > 0 ? acc[acc.length - 1].value : 0;
-    acc.push({ date: c.received_at, value: previous + c.amount });
-    return acc;
-  }, []);
+  // Série usada no gráfico embutido do card de Patrimônio — consistente com
+  // a mesma fórmula de kpis.currentEquity (soma de net_profit das operações
+  // fechadas menos saques).
+  const equitySeries = computeEquitySeries(operations, withdrawals);
 
   const withdrawalSeries = [...withdrawals]
     .sort((a, b) => new Date(a.withdrawn_at).getTime() - new Date(b.withdrawn_at).getTime())
@@ -108,14 +96,6 @@ export default function DashboardPage() {
       acc.push({ date: (o.closed_at as string).slice(0, 10), value: previous + (o.ir_amount ?? 0) });
       return acc;
     }, []);
-
-  const equityCompositionData =
-    kpis.freeCash !== null
-      ? [
-          { name: 'Comprometido', value: kpis.committedCapital, color: 'var(--info)' },
-          { name: 'Caixa livre', value: kpis.freeCash, color: 'var(--accent)' },
-        ]
-      : [];
 
   const exercisedCount = operations.filter((o) => o.exercised_label === 'Sim').length;
   const nonExercisedCount = operations.filter((o) => o.status !== 'aberta' && o.exercised_label === 'Não').length;
@@ -217,18 +197,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {kpis.currentEquity === null && !loading && (
-        <div className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-muted px-4 py-3 text-sm text-warning">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <div>
-            Informe o <strong>Patrimônio Inicial</strong> em Configurações → Estratégia — só precisa fazer isso
-            uma vez (o caixa que você tinha antes da primeira operação no sistema). Daí em diante, Patrimônio,
-            Caixa Livre e Capital Comprometido são calculados automaticamente a partir do seu histórico de
-            operações, sem precisar atualizar nada manualmente.
-          </div>
-        </div>
-      )}
-
       <PatrimonyHeroCard
         currentEquity={kpis.currentEquity}
         totalProfit={kpis.totalProfit}
@@ -241,18 +209,7 @@ export default function DashboardPage() {
 
       <GoalsSummaryPanel currentEquity={kpis.currentEquity} operations={operations} />
 
-      <CommissionPanel entries={commissionEntries} onChanged={refetchDashboard} />
-
       <WithdrawalPanel entries={withdrawals} onChanged={refetchDashboard} />
-
-      <EquityCompositionPanel
-        initialEquity={kpis.initialEquity}
-        equityImpactingProfit={kpis.equityImpactingProfit}
-        totalCommissions={kpis.totalCommissions}
-        totalWithdrawn={kpis.totalWithdrawn}
-        emergencyReserve={kpis.emergencyReserve}
-        currentEquity={kpis.currentEquity}
-      />
 
       {/* KPIs superiores */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -269,13 +226,6 @@ export default function DashboardPage() {
           value={formatBRL(kpis.totalWithdrawn)}
           icon={PiggyBank}
           onClick={() => setDetailKind('withdrawals')}
-        />
-        <KpiCard
-          label="Comissões Recebidas"
-          value={formatBRL(kpis.totalCommissions)}
-          icon={Handshake}
-          accent="accent"
-          onClick={() => setDetailKind('commissions')}
         />
         <KpiCard label="Caixa Livre" value={formatBRL(kpis.freeCash)} icon={PiggyBank} />
         <KpiCard label="Capital Comprometido" value={formatBRL(kpis.committedCapital)} icon={Lock} />
@@ -340,13 +290,10 @@ export default function DashboardPage() {
 
       {/* Gráficos de evolução */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <LineChartCard title="Evolução Patrimonial" data={equitySeries} emptyLabel="Informe o Patrimônio Inicial em Configurações." />
         <LineChartCard title="Evolução dos Prêmios (bruto)" data={premiumSeries} color="var(--info)" />
         <LineChartCard title="Evolução do Lucro (líquido, pós-IR)" data={profitSeries} color="var(--accent)" />
         <LineChartCard title="Evolução do IR Pago" data={irPaidSeries} color="var(--danger)" emptyLabel="Nenhum IR pago ainda." />
         <LineChartCard title="Evolução dos Saques" data={withdrawalSeries} color="var(--warning)" emptyLabel="Nenhum saque lançado ainda." />
-        <LineChartCard title="Evolução das Comissões" data={commissionSeries} color="var(--accent)" emptyLabel="Nenhuma comissão lançada ainda." />
-        <PieChartCard title="Patrimônio × Caixa" data={equityCompositionData} emptyLabel="Informe o Patrimônio Inicial em Configurações." />
       </div>
 
       <PieChartCard title="Distribuição das Operações" data={statusDistribution} />
