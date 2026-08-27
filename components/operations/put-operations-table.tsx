@@ -86,7 +86,7 @@ function calcPutRow(op: Operation, irFrozen: boolean) {
   let ir: number | null;
   let netProfit: number | null;
   let efficiency: number | null;
-  let irIsEstimate = false; // true quando o IR mostrado é uma projeção (assume expiração sem custo), não o valor real ainda
+  let isEstimate = false; // true quando IR/Lucro Final/Eficiência mostrados são projeção (assume expiração sem custo), não o valor real ainda
 
   if (op.status === 'aberta') {
     if (totalBuyback !== null) {
@@ -95,15 +95,15 @@ function calcPutRow(op: Operation, irFrozen: boolean) {
       netProfit = round2(live.netProfit);
       efficiency = round2(live.efficiencyPct);
     } else {
-      // Ainda sem valor de recompra preenchido — estima o IR assumindo o
-      // cenário de expiração sem custo (o mais simples e mais comum),
-      // usando o prêmio total já recebido. Muda para o valor real assim
-      // que o usuário preencher a recompra de verdade.
+      // Ainda sem valor de recompra preenchido — estima o IR e o Lucro Final
+      // assumindo o cenário de expiração sem custo (o mais simples e mais
+      // comum), usando o prêmio total já recebido. Muda para o valor real
+      // assim que o usuário preencher a recompra de verdade.
       const estimated = calculateNetProfit({ optionType: 'PUT', premiumReceived: totalPremium, buybackCost: 0, irFrozen });
       ir = round2(estimated.ir);
-      netProfit = null;
-      efficiency = null;
-      irIsEstimate = true;
+      netProfit = round2(estimated.netProfit);
+      efficiency = round2(estimated.efficiencyPct);
+      isEstimate = true;
     }
   } else {
     ir = op.ir_amount ?? null;
@@ -113,7 +113,7 @@ function calcPutRow(op: Operation, irFrozen: boolean) {
 
   return {
     quote, strike, premium, ceiling, isExpensive, distance, spread, guarantee, cash, hasCoverage, rate,
-    totalPremium, buybackPerShare, totalBuyback, sellMinusBuyback, ir, netProfit, efficiency, irIsEstimate,
+    totalPremium, buybackPerShare, totalBuyback, sellMinusBuyback, ir, netProfit, efficiency, isEstimate,
   };
 }
 
@@ -598,20 +598,30 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                 <Td>
                   {r.ir !== null ? (
                     <span
-                      className={cn('font-tabular text-[11.5px] text-danger', r.irIsEstimate && 'italic opacity-70')}
-                      title={r.irIsEstimate ? 'Projeção — assume expiração sem custo de recompra. Preencha o Valor Recompra para o cálculo real.' : undefined}
+                      className={cn('font-tabular text-[11.5px] text-danger', r.isEstimate && 'italic opacity-70')}
+                      title={r.isEstimate ? 'Projeção — assume expiração sem custo de recompra. Preencha o Valor Recompra para o cálculo real.' : undefined}
                     >
                       {formatBRL(r.ir)}
-                      {r.irIsEstimate && '*'}
+                      {r.isEstimate && '*'}
                     </span>
                   ) : (
                     <span className="font-tabular text-[11.5px] text-danger">—</span>
                   )}
                 </Td>
 
-                {/* Lucro Final — calculado */}
+                {/* Lucro Final — calculado. Itálico + tooltip quando é só projeção. */}
                 <Td>
-                  <span className="font-tabular text-[11.5px] font-bold text-accent">{r.netProfit !== null ? formatBRL(r.netProfit) : '—'}</span>
+                  {r.netProfit !== null ? (
+                    <span
+                      className={cn('font-tabular text-[11.5px] font-bold text-accent', r.isEstimate && 'italic opacity-70')}
+                      title={r.isEstimate ? 'Projeção — assume expiração sem custo de recompra. Preencha o Valor Recompra para o cálculo real.' : undefined}
+                    >
+                      {formatBRL(r.netProfit)}
+                      {r.isEstimate && '*'}
+                    </span>
+                  ) : (
+                    <span className="font-tabular text-[11.5px] font-bold text-accent">—</span>
+                  )}
                 </Td>
 
                 {/* Eficiência (%) — calculado */}
