@@ -231,7 +231,6 @@ export default function DashboardPage() {
           icon={PiggyBank}
           onClick={() => setDetailKind('withdrawals')}
         />
-        <KpiCard label="Caixa Livre" value={formatBRL(kpis.freeCash)} icon={PiggyBank} />
         <KpiCard label="Capital Comprometido" value={formatBRL(kpis.committedCapital)} icon={Lock} />
         <KpiCard
           label="Operações Abertas"
