@@ -75,6 +75,7 @@ function calcCallRow(op: Operation, averagePrice: number | null, irFrozen: boole
   let netProfit: number | null = null;
   let resultado: number | null = null;
   let efficiency: number | null = null;
+  let irIsEstimate = false; // true quando o IR mostrado é uma projeção (sem recompra ainda preenchida), não o valor real ainda
 
   if (op.status === 'aberta') {
     if (exercised && averagePrice !== null) {
@@ -95,6 +96,14 @@ function calcCallRow(op: Operation, averagePrice: number | null, irFrozen: boole
       ir = round2(live.ir);
       netProfit = round2(live.netProfit);
       efficiency = round2(live.efficiencyPct);
+    } else {
+      // Ainda sem recompra preenchida (nem marcada como exercida) — estima o
+      // IR assumindo o cenário mais simples: não exercida, sem custo de
+      // recompra, IR sobre o prêmio bruto total. Muda para o valor real
+      // assim que o usuário preencher a recompra ou marcar como exercida.
+      const estimated = calculateNetProfit({ optionType: 'CALL', premiumReceived: totalPremium, buybackCost: 0, irFrozen });
+      ir = round2(estimated.ir);
+      irIsEstimate = true;
     }
   } else {
     resultado = op.gross_result ?? null;
@@ -103,7 +112,7 @@ function calcCallRow(op: Operation, averagePrice: number | null, irFrozen: boole
     efficiency = op.efficiency_pct ?? null;
   }
 
-  return { strike, quote, premium, spread, distance, rate, lucroPrejuizoPorAcao, totalPremium, totalBuyback, resultado, ir, netProfit, efficiency };
+  return { strike, quote, premium, spread, distance, rate, lucroPrejuizoPorAcao, totalPremium, totalBuyback, resultado, ir, netProfit, efficiency, irIsEstimate };
 }
 
 function InlineField({
@@ -439,7 +448,17 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                   <span className="font-tabular text-[11.5px] text-accent">{r.resultado !== null ? formatBRL(r.resultado) : '—'}</span>
                 </Td>
                 <Td>
-                  <span className="font-tabular text-[11.5px] text-danger">{r.ir !== null ? formatBRL(r.ir) : '—'}</span>
+                  {r.ir !== null ? (
+                    <span
+                      className={cn('font-tabular text-[11.5px] text-danger', r.irIsEstimate && 'italic opacity-70')}
+                      title={r.irIsEstimate ? 'Projeção — assume não exercida, sem custo de recompra. Atualiza quando você preencher a recompra ou marcar como exercida.' : undefined}
+                    >
+                      {formatBRL(r.ir)}
+                      {r.irIsEstimate && '*'}
+                    </span>
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-danger">—</span>
+                  )}
                 </Td>
                 <Td>
                   <span className="font-tabular text-[11.5px] font-bold text-accent">{r.netProfit !== null ? formatBRL(r.netProfit) : '—'}</span>
