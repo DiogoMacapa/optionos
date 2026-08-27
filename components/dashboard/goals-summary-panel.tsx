@@ -11,6 +11,7 @@ import type { Goal, Operation } from '@/lib/types/database';
 interface GoalsSummaryPanelProps {
   currentEquity: number | null;
   operations: Operation[];
+  extraCash?: number;
 }
 
 /**
@@ -18,7 +19,7 @@ interface GoalsSummaryPanelProps {
  * até 3 metas com barra de progresso. Link para a tela completa de
  * Objetivos, onde aparece o gráfico de projeção detalhado.
  */
-export function GoalsSummaryPanel({ currentEquity, operations }: GoalsSummaryPanelProps) {
+export function GoalsSummaryPanel({ currentEquity, operations, extraCash = 0 }: GoalsSummaryPanelProps) {
   const [goals, setGoals] = useState<Goal[]>([]);
 
   useEffect(() => {
@@ -43,7 +44,7 @@ export function GoalsSummaryPanel({ currentEquity, operations }: GoalsSummaryPan
       </div>
       <div className="flex flex-col gap-2">
         {goals.slice(0, 3).map((goal) => {
-          const progress = computeGoalProgress(goal, currentEquity, operations);
+          const progress = computeGoalProgress(goal, currentEquity, operations, extraCash);
           const capped = Math.min(progress.progressPct, 100);
           return (
             <div key={goal.id} className="flex items-center gap-3">

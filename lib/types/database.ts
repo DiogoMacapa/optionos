@@ -109,6 +109,7 @@ export interface StrategySettings {
   initial_equity: number | null;
   ir_loss_to_offset: number;
   ir_frozen: boolean;
+  extra_cash_for_goals: number; // caixa que não veio das operações (aporte, saldo prévio) — soma só ao progresso da meta de Patrimônio em Objetivos
   max_concentration_pct: number | null;
   min_days_to_expiration: number | null;
   max_days_to_expiration: number | null;

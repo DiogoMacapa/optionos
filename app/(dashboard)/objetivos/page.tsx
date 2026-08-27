@@ -11,6 +11,7 @@ import {
   updateGoal,
   deleteGoal,
   getStrategySettings,
+  updateStrategySettings,
   listOperations,
   listWithdrawals,
   listCommissionEntries,
@@ -102,6 +103,21 @@ export default function ObjetivosPage() {
   const kpis = computeKpis(operations, strategySettings, withdrawals, commissionEntries);
   const equitySeries = computeEquitySeries(operations, withdrawals);
 
+  const [savingExtraCash, setSavingExtraCash] = useState(false);
+
+  async function handleSaveExtraCash(raw: string) {
+    if (!strategySettings) return;
+    setSavingExtraCash(true);
+    try {
+      const updated = await updateStrategySettings(strategySettings.id, {
+        extra_cash_for_goals: parseBRNumber(raw || '0'),
+      });
+      setStrategySettings(updated);
+    } finally {
+      setSavingExtraCash(false);
+    }
+  }
+
   function openCreateForm() {
     setEditingId(null);
     setForm(EMPTY_FORM);
@@ -173,6 +189,27 @@ export default function ObjetivosPage() {
         </Button>
       </div>
 
+      <div className="rounded-lg border border-border bg-surface px-4 py-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex-1">
+            <label className="text-xs text-muted-foreground">Caixa atual (R$) — não veio das operações</label>
+            <p className="mt-0.5 text-[11px] text-faint-foreground">
+              Dinheiro que você tem disponível mas que não veio do resultado das operações de PUT/CALL (ex: aporte
+              próprio, saldo prévio). Soma só ao progresso da meta de Patrimônio aqui em Objetivos — não afeta o
+              Patrimônio Atual do Dashboard.
+            </p>
+            <Input
+              key={`extra-cash-${strategySettings?.extra_cash_for_goals ?? 0}`}
+              defaultValue={strategySettings ? String(strategySettings.extra_cash_for_goals ?? 0).replace('.', ',') : ''}
+              onBlur={(e) => handleSaveExtraCash(e.target.value)}
+              placeholder="0,00"
+              className="mt-1.5 w-40 font-tabular"
+            />
+          </div>
+          {savingExtraCash && <span className="text-[11px] text-faint-foreground">Salvando…</span>}
+        </div>
+      </div>
+
       {showForm && (
         <div className="rounded-xl border border-border bg-surface p-4">
           <div className="flex items-center justify-between">
@@ -238,7 +275,7 @@ export default function ObjetivosPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {goals.map((goal) => {
-          const progress = computeGoalProgress(goal, kpis.currentEquity, operations);
+          const progress = computeGoalProgress(goal, kpis.currentEquity, operations, strategySettings?.extra_cash_for_goals ?? 0);
           const capped = Math.min(progress.progressPct, 100);
           const isDone = progress.progressPct >= 100;
           const duration = progress.daysRemaining !== null && progress.daysRemaining >= 0 ? splitDuration(progress.daysRemaining) : null;

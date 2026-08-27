@@ -207,7 +207,11 @@ export default function DashboardPage() {
 
       <IrCreditPanel irLossToOffset={strategySettings?.ir_loss_to_offset ?? 0} />
 
-      <GoalsSummaryPanel currentEquity={kpis.currentEquity} operations={operations} />
+      <GoalsSummaryPanel
+        currentEquity={kpis.currentEquity}
+        operations={operations}
+        extraCash={strategySettings?.extra_cash_for_goals ?? 0}
+      />
 
       <WithdrawalPanel entries={withdrawals} onChanged={refetchDashboard} />
 

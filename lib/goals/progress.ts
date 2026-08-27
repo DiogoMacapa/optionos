@@ -21,16 +21,23 @@ export interface GoalProgress {
  * sem depender do prêmio médio histórico (que é passado, não previsão
  * de futuro). O prêmio médio recente aparece só como CONTEXTO, para o
  * usuário comparar se seu ritmo atual está perto do que precisa.
+ *
+ * extraCash: caixa que o usuário tem mas que não veio do resultado
+ * das operações (aporte próprio, saldo prévio) — soma SÓ ao progresso
+ * de metas do tipo 'patrimonio', sem afetar o Patrimônio Atual do
+ * Dashboard (confirmado com o usuário: esse valor é exclusivo de
+ * Objetivos).
  */
 export function computeGoalProgress(
   goal: Goal,
   currentEquity: number | null,
-  operations: Operation[]
+  operations: Operation[],
+  extraCash: number = 0
 ): GoalProgress {
   let currentValue = 0;
 
   if (goal.target_type === 'patrimonio') {
-    currentValue = currentEquity ?? 0;
+    currentValue = (currentEquity ?? 0) + extraCash;
   } else if (goal.target_type === 'renda_mensal') {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
