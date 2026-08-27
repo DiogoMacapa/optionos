@@ -137,7 +137,7 @@ function InlineField({
       placeholder={placeholder}
       style={{ width }}
       className={cn(
-        'rounded border px-1.5 py-1 text-[11.5px] outline-none',
+        'rounded border px-1.5 py-1 text-center text-[11.5px] outline-none',
         mono && 'font-tabular',
         danger ? 'border-danger/60 bg-danger-muted text-danger' : 'border-border bg-surface-elevated text-foreground'
       )}
@@ -303,7 +303,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
             const r = calcPutRow(op, irFrozen);
             const editable = op.status === 'aberta';
             return (
-              <tr key={op.id} className={cn('border-t border-border transition-opacity', !editable && 'opacity-60 hover:opacity-100')}>
+              <tr key={op.id} className={cn('border-t border-border transition-colors hover:bg-surface-elevated/30', !editable && 'opacity-60 hover:opacity-100')}>
                 {/* Status */}
                 <Td>
                   <Badge variant={op.status === 'aberta' ? 'outline' : 'default'}>{op.status}</Badge>
@@ -363,7 +363,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                 {/* Cotação */}
                 <Td width={92}>
                   {editable ? (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-center gap-1">
                       <InlineField
                         key={`quote-${op.id}-${op.reference_quote}`}
                         initialValue={op.reference_quote !== null ? String(op.reference_quote).replace('.', ',') : ''}
@@ -506,7 +506,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
 
                 {/* Teto */}
                 <Td width={130}>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center justify-center gap-1.5">
                     <Badge variant={r.isExpensive ? 'danger' : 'success'}>{r.isExpensive ? 'Cara' : 'Barata'}</Badge>
                     <InlineField
                       key={`ceiling-${op.id}-${r.ceiling}`}
@@ -624,7 +624,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                     value={op.exercised_label ?? ''}
                     onChange={(e) => saveField(op, { exercised_label: (e.target.value || null) as Operation['exercised_label'] })}
                     className={cn(
-                      'w-full rounded border px-1.5 py-1 text-[11px] outline-none',
+                      'w-full rounded border px-1.5 py-1 text-center text-[11px] outline-none',
                       op.exercised_label
                         ? 'border-border bg-transparent text-foreground'
                         : 'border-border bg-surface-elevated text-faint-foreground'
@@ -639,7 +639,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
 
                 {/* Ações */}
                 <Td>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center justify-center gap-1.5">
                     {editable && (
                       <button
                         onClick={() => onClose(op)}
@@ -704,7 +704,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
 function Th({ children, width }: { children?: React.ReactNode; width?: number }) {
   return (
     <th
-      className="whitespace-nowrap border-b border-border bg-surface-elevated/40 px-1.5 pb-2 pt-1.5 text-left text-[9.5px] font-bold uppercase tracking-wide text-faint-foreground"
+      className="whitespace-nowrap border-b border-border bg-surface-elevated/40 px-1.5 pb-2 pt-1.5 text-center text-[9.5px] font-bold uppercase tracking-wider text-faint-foreground"
       style={{ width }}
     >
       {children}
@@ -714,7 +714,7 @@ function Th({ children, width }: { children?: React.ReactNode; width?: number })
 
 function Td({ children, width }: { children: React.ReactNode; width?: number }) {
   return (
-    <td className="px-1.5 py-1 align-middle" style={{ width }}>
+    <td className="px-1.5 py-1 text-center align-middle" style={{ width }}>
       {children}
     </td>
   );
