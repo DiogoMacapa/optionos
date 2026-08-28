@@ -1,21 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react';
+import { Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { formatBRL, formatDate, parseBRNumber, cn } from '@/lib/utils';
-import {
-  listStockPositions,
-  upsertStockPosition,
-  closeStockPosition,
-  findOrCreateAsset,
-  listHolders,
-  listStockSaleHistory,
-} from '@/lib/supabase/queries';
+import { formatBRL, formatDate, cn } from '@/lib/utils';
+import { listStockPositions, closeStockPosition, listHolders, listStockSaleHistory } from '@/lib/supabase/queries';
 import type { StockPosition, Holder, StockSaleHistory } from '@/lib/types/database';
 
 export function MyStocksTab() {
@@ -24,29 +13,6 @@ export function MyStocksTab() {
   const [holders, setHolders] = useState<Holder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  const [ticker, setTicker] = useState('');
-  const [holderId, setHolderId] = useState('');
-  const [qty, setQty] = useState('');
-  const [avg, setAvg] = useState('');
-  const [totalInvestedText, setTotalInvestedText] = useState('');
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [pos, hol, history] = await Promise.all([listStockPositions(), listHolders(), listStockSaleHistory()]);
-      setPositions(pos);
-      setHolders(hol);
-      setSaleHistory(history);
-      setHolderId((prev) => prev || (hol.find((h) => h.is_self) ?? hol[0])?.id || '');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar posições.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +25,6 @@ export function MyStocksTab() {
         setPositions(pos);
         setHolders(hol);
         setSaleHistory(history);
-        setHolderId((prev) => prev || (hol.find((h) => h.is_self) ?? hol[0])?.id || '');
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Erro ao carregar posições.');
       } finally {
@@ -71,28 +36,6 @@ export function MyStocksTab() {
     };
   }, []);
 
-  async function handleAdd() {
-    if (!ticker.trim() || !qty || !avg || !holderId) return;
-    setSaving(true);
-    try {
-      const asset = await findOrCreateAsset(ticker);
-      await upsertStockPosition({
-        assetId: asset.id,
-        holderId,
-        quantity: Math.round(parseBRNumber(qty)),
-        averagePrice: parseBRNumber(avg),
-        totalInvested: totalInvestedText.trim() ? parseBRNumber(totalInvestedText) : null,
-      });
-      setTicker('');
-      setQty('');
-      setAvg('');
-      setTotalInvestedText('');
-      await refresh();
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function handleRemove(id: string) {
     await closeStockPosition(id);
     setPositions((prev) => prev.filter((p) => p.id !== id));
@@ -103,7 +46,8 @@ export function MyStocksTab() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
-        Usadas para calcular o resultado quando uma Covered Call é exercida (Strike − PM).
+        Usadas para calcular o resultado quando uma Covered Call é exercida (Strike − PM). Preenchidas
+        automaticamente ao ser exercido numa PUT ou CALL — nada a cadastrar manualmente aqui.
       </p>
 
       {error && (
@@ -111,7 +55,7 @@ export function MyStocksTab() {
       )}
 
       {!loading && positions.length === 0 && !error && (
-        <p className="text-sm text-faint-foreground">Nenhuma posição cadastrada ainda.</p>
+        <p className="text-sm text-faint-foreground">Nenhuma posição ainda.</p>
       )}
 
       <div className="flex flex-col gap-3">
@@ -155,55 +99,6 @@ export function MyStocksTab() {
           </div>
         ))}
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium text-foreground">Nova posição</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <Label>Ticker</Label>
-              <Input className="font-tabular" value={ticker} onChange={(e) => setTicker(e.target.value.toUpperCase())} placeholder="BPAC11" />
-            </div>
-            <div className="space-y-1">
-              <Label>Titular</Label>
-              <select
-                value={holderId}
-                onChange={(e) => setHolderId(e.target.value)}
-                className="flex h-9 w-full rounded-lg border border-border bg-surface-elevated px-3 py-1 text-sm text-foreground outline-none"
-              >
-                {holders.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label>Quantidade</Label>
-              <Input className="font-tabular" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="9100" />
-            </div>
-            <div className="space-y-1">
-              <Label>Preço médio (R$)</Label>
-              <Input className="font-tabular" value={avg} onChange={(e) => setAvg(e.target.value)} placeholder="57,84" />
-            </div>
-            <div className="space-y-1 sm:col-span-2">
-              <Label>Total desembolsado (R$) — opcional, se diferente de Qtd × PM</Label>
-              <Input
-                className="font-tabular"
-                value={totalInvestedText}
-                onChange={(e) => setTotalInvestedText(e.target.value)}
-                placeholder="deixe em branco para usar Qtd × PM"
-              />
-            </div>
-          </div>
-          <Button size="sm" onClick={handleAdd} disabled={saving || !ticker.trim() || !qty || !avg}>
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            {saving ? 'Salvando…' : 'Adicionar posição'}
-          </Button>
-        </CardContent>
-      </Card>
 
       {saleHistory.length > 0 && (
         <div>
