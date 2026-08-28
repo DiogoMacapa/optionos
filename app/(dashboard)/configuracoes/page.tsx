@@ -43,16 +43,8 @@ export default function ConfiguracoesPage() {
         setSettings(s);
         setHolders(h);
         setSettingsText({
-          max_delta: String(s.max_delta ?? '').replace('.', ','),
-          min_delta: String(s.min_delta ?? '').replace('.', ','),
-          available_cash: s.available_cash === null ? '' : String(s.available_cash).replace('.', ','),
-          emergency_reserve: String(s.emergency_reserve ?? 0).replace('.', ','),
-          initial_equity: s.initial_equity === null ? '' : String(s.initial_equity).replace('.', ','),
           ir_loss_to_offset: String(s.ir_loss_to_offset ?? 0).replace('.', ','),
           ir_frozen: String(s.ir_frozen ?? false),
-          max_concentration_pct: s.max_concentration_pct === null ? '' : String(s.max_concentration_pct).replace('.', ','),
-          min_days_to_expiration: s.min_days_to_expiration === null ? '' : String(s.min_days_to_expiration),
-          max_days_to_expiration: s.max_days_to_expiration === null ? '' : String(s.max_days_to_expiration),
         });
         setConnectionOk(true);
       } catch (err) {
@@ -69,22 +61,8 @@ export default function ConfiguracoesPage() {
     setSaveError(null);
     try {
       const updated = await updateStrategySettings(settings.id, {
-        max_delta: parseBRNumber(settingsText.max_delta ?? '0'),
-        min_delta: parseBRNumber(settingsText.min_delta ?? '0'),
-        available_cash: settingsText.available_cash?.trim() ? parseBRNumber(settingsText.available_cash) : null,
-        emergency_reserve: parseBRNumber(settingsText.emergency_reserve ?? '0'),
-        initial_equity: settingsText.initial_equity?.trim() ? parseBRNumber(settingsText.initial_equity) : null,
         ir_loss_to_offset: parseBRNumber(settingsText.ir_loss_to_offset ?? '0'),
         ir_frozen: settingsText.ir_frozen === 'true',
-        max_concentration_pct: settingsText.max_concentration_pct?.trim()
-          ? parseBRNumber(settingsText.max_concentration_pct)
-          : null,
-        min_days_to_expiration: settingsText.min_days_to_expiration?.trim()
-          ? Math.round(parseBRNumber(settingsText.min_days_to_expiration))
-          : null,
-        max_days_to_expiration: settingsText.max_days_to_expiration?.trim()
-          ? Math.round(parseBRNumber(settingsText.max_days_to_expiration))
-          : null,
       });
       setSettings(updated);
       setSaved(true);
@@ -193,62 +171,6 @@ export default function ConfiguracoesPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label>Delta máximo</Label>
-              <Input
-                className="font-tabular"
-                value={settingsText.max_delta ?? ''}
-                onChange={(e) => setSettingsText((t) => ({ ...t, max_delta: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Delta mínimo</Label>
-              <Input
-                className="font-tabular"
-                value={settingsText.min_delta ?? ''}
-                onChange={(e) => setSettingsText((t) => ({ ...t, min_delta: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Caixa disponível (R$)</Label>
-              <Input
-                className="font-tabular"
-                value={settingsText.available_cash ?? ''}
-                onChange={(e) => setSettingsText((t) => ({ ...t, available_cash: e.target.value }))}
-              />
-              <p className="text-[11px] text-faint-foreground">
-                Usado nas Calculadoras e para verificar cobertura ao abrir uma nova PUT. Não alimenta mais o
-                Dashboard — veja &quot;Patrimônio Inicial&quot; abaixo.
-              </p>
-            </div>
-            <div className="space-y-1 sm:col-span-2">
-              <Label className="flex items-center gap-1.5">
-                Patrimônio Inicial (R$)
-                <span className="rounded bg-accent-muted px-1.5 py-0.5 text-[9px] font-bold text-accent">DEFINE UMA VEZ</span>
-              </Label>
-              <Input
-                className="font-tabular"
-                value={settingsText.initial_equity ?? ''}
-                onChange={(e) => setSettingsText((t) => ({ ...t, initial_equity: e.target.value }))}
-              />
-              <p className="text-[11px] text-faint-foreground">
-                O caixa que você tinha antes da primeira operação registrada no sistema. A partir daqui o
-                Dashboard calcula Patrimônio, Caixa Livre e Capital Comprometido sozinho, somando o lucro
-                líquido de cada operação fechada e descontando os saques que você marcar — não precisa mais
-                atualizar esse número toda semana.
-              </p>
-            </div>
-            <div className="space-y-1">
-              <Label>Reserva de emergência (R$)</Label>
-              <Input
-                className="font-tabular"
-                value={settingsText.emergency_reserve ?? ''}
-                onChange={(e) => setSettingsText((t) => ({ ...t, emergency_reserve: e.target.value }))}
-              />
-              <p className="text-[11px] text-faint-foreground">
-                Dinheiro no cofrinho do banco — soma ao Patrimônio, mas você não opera com ele.
-              </p>
-            </div>
-            <div className="space-y-1">
               <Label>Prejuízo a compensar (IR) (R$)</Label>
               <Input
                 className="font-tabular"
@@ -284,30 +206,6 @@ export default function ConfiguracoesPage() {
                 ao Lucro Bruto, sem descontar IR. Desligue quando o prejuízo acabar e você voltar a pagar IR de
                 verdade. Não afeta operações já encerradas.
               </p>
-            </div>
-            <div className="space-y-1">
-              <Label>Concentração máxima por operação (%)</Label>
-              <Input
-                className="font-tabular"
-                value={settingsText.max_concentration_pct ?? ''}
-                onChange={(e) => setSettingsText((t) => ({ ...t, max_concentration_pct: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Dias mín. até o vencimento</Label>
-              <Input
-                className="font-tabular"
-                value={settingsText.min_days_to_expiration ?? ''}
-                onChange={(e) => setSettingsText((t) => ({ ...t, min_days_to_expiration: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Dias máx. até o vencimento</Label>
-              <Input
-                className="font-tabular"
-                value={settingsText.max_days_to_expiration ?? ''}
-                onChange={(e) => setSettingsText((t) => ({ ...t, max_days_to_expiration: e.target.value }))}
-              />
             </div>
             <div className="sm:col-span-2 flex items-center gap-3">
               <Button size="sm" onClick={handleSaveSettings} disabled={saving}>
