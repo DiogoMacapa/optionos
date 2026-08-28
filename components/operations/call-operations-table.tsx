@@ -282,7 +282,6 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
             <Th width={80}>Prêmio Venda</Th>
             <Th>Total Prêmio</Th>
             <Th width={80}>Strike</Th>
-            <Th width={70}>Delta</Th>
             <Th>Spread</Th>
             <Th>PM</Th>
             <Th>Lucro/Prejuízo</Th>
@@ -399,15 +398,6 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                   ) : (
                     <span className="font-tabular text-[11.5px] font-semibold text-accent">{formatNumber(r.strike, 2)}</span>
                   )}
-                </Td>
-                <Td width={70}>
-                  <InlineField
-                    key={`delta-${op.id}-${op.delta_at_open}`}
-                    initialValue={op.delta_at_open !== null && op.delta_at_open !== undefined ? String(op.delta_at_open).replace('.', ',') : ''}
-                    onCommit={(v) => saveField(op, { delta_at_open: v.trim() === '' ? null : parseBRNumber(v) })}
-                    placeholder="0,15"
-                    width={56}
-                  />
                 </Td>
                 <Td>
                   <span className="font-tabular text-[11.5px] text-muted-foreground">{r.spread !== null ? formatNumber(r.spread, 2) : '—'}</span>

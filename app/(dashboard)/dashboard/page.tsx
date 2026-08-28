@@ -31,7 +31,6 @@ import { formatBRL, formatPct } from '@/lib/utils';
 import {
   mostProfitableAssets,
   overallStats,
-  mostProfitableDeltaBands,
   bestOpeningWeekdays,
   bestHoldingPeriods,
 } from '@/lib/learning/statistics';
@@ -118,9 +117,6 @@ export default function DashboardPage() {
     .map((a) => ({ label: a.ticker, value: a.totalProfit }));
 
   const learning = overallStats(operations);
-  const deltaBands = mostProfitableDeltaBands(operations)
-    .slice(0, 6)
-    .map((d) => ({ label: d.label, value: d.avgProfit }));
   const openingWeekdayStats = bestOpeningWeekdays(operations).map((w) => ({ label: w.weekday.slice(0, 3), value: w.avgProfit }));
   const holdingPeriodStats = bestHoldingPeriods(operations).map((h) => ({ label: h.label, value: h.avgProfit }));
 
@@ -266,21 +262,12 @@ export default function DashboardPage() {
             <KpiCard label="Taxa de Exercício" value={formatPct(learning.exerciseRatePct, 1)} icon={Percent} />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <BarChartCard
-              title="Melhor Delta (lucro médio por faixa)"
-              data={deltaBands}
-              layout="vertical"
-              colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
-              emptyLabel="Sem operações com Delta registrado ainda."
-            />
-            <BarChartCard
-              title="Melhor Dia da Semana para Operar (lucro médio)"
-              data={openingWeekdayStats}
-              layout="horizontal"
-              colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
-            />
-          </div>
+          <BarChartCard
+            title="Melhor Dia da Semana para Operar (lucro médio)"
+            data={openingWeekdayStats}
+            layout="horizontal"
+            colorFn={(v) => (v >= 0 ? 'var(--accent)' : 'var(--danger)')}
+          />
 
           <BarChartCard
             title="Melhor Prazo até o Vencimento (lucro médio por faixa de dias)"
