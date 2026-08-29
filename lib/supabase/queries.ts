@@ -138,9 +138,11 @@ export async function updateOperationFields(
       | 'opened_at'
       | 'buyback_premium'
       | 'option_symbol'
-      | 'exercised_label'
+            | 'exercised_label'
       | 'counts_toward_equity'
       | 'delta_at_open'
+      | 'premium_withdrawn_at'
+      | 'commission_pct'
     >
   >
 ): Promise<Operation> {
