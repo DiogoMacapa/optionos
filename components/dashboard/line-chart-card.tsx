@@ -33,8 +33,15 @@ export function LineChartCard({
       </CardHeader>
       <CardContent className="h-56">
         {data.length < 2 ? (
-          <div className="flex h-full items-center justify-center text-sm text-faint-foreground">
-            {emptyLabel}
+          <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-sm text-faint-foreground">
+            {data.length === 1 ? (
+              <>
+                <span className="font-tabular text-foreground">{valueFormatter(data[0].value)}</span>
+                <span>Só um ponto até agora — o gráfico aparece a partir do segundo.</span>
+              </>
+            ) : (
+              emptyLabel
+            )}
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
