@@ -11,19 +11,15 @@ interface PatrimonyHeroCardProps {
   onProfitClick?: () => void;
 }
 
-/**
- * Faixa de destaque do Patrimônio Atual, no topo do Dashboard —
- * gráfico de área com gradiente por trás do valor, no estilo
- * aprovado pelo usuário. Mantém os mesmos dados já calculados
- * (currentEquity, totalProfit, successRatePct, equitySeries) — só
- * muda a apresentação visual.
- */
 export function PatrimonyHeroCard({ currentEquity, totalProfit, successRatePct, equitySeries, onProfitClick }: PatrimonyHeroCardProps) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-accent/15 bg-gradient-to-br from-accent-muted via-accent-muted/40 to-surface px-6 py-5">
+    <div
+      className="relative overflow-hidden rounded-2xl border border-primary-accent-border bg-glass-strong px-6 py-5 shadow-[0_0_60px_-15px_var(--accent-glow-strong)] backdrop-blur-xl"
+      style={{ backgroundImage: 'linear-gradient(to bottom right, var(--accent-glow), transparent 60%)' }}
+    >
       <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-[11px] uppercase tracking-wide text-accent">Patrimônio atual</div>
+          <div className="text-[11px] uppercase tracking-wide text-primary-accent">Patrimônio atual</div>
           <div className="mt-1 font-tabular text-[28px] font-semibold leading-none text-foreground sm:text-[32px]">
             {formatBRL(currentEquity)}
           </div>
@@ -36,7 +32,7 @@ export function PatrimonyHeroCard({ currentEquity, totalProfit, successRatePct, 
               {totalProfit >= 0 ? '+' : ''}
               {formatBRL(totalProfit)} no período
             </button>
-            <span className="text-accent/80">{formatPct(successRatePct, 1)} taxa de sucesso</span>
+            <span className="text-primary-accent/80">{formatPct(successRatePct, 1)} taxa de sucesso</span>
           </div>
         </div>
       </div>
@@ -47,12 +43,12 @@ export function PatrimonyHeroCard({ currentEquity, totalProfit, successRatePct, 
             <AreaChart data={equitySeries} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="hero-gradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
+                  <stop offset="0%" stopColor="var(--primary-accent)" stopOpacity={0.4} />
+                  <stop offset="100%" stopColor="var(--primary-accent)" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <YAxis hide domain={['dataMin', 'dataMax']} />
-              <Area type="monotone" dataKey="value" stroke="var(--accent)" strokeWidth={2} fill="url(#hero-gradient)" dot={false} />
+              <Area type="monotone" dataKey="value" stroke="var(--primary-accent)" strokeWidth={2} fill="url(#hero-gradient)" dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
