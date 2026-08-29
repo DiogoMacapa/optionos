@@ -7,6 +7,7 @@ import { PutOperationsTable } from '@/components/operations/put-operations-table
 import { CallOperationsTable } from '@/components/operations/call-operations-table';
 import { CloseOperationDialog } from '@/components/operations/close-operation-dialog';
 import { MyStocksTab } from '@/components/operations/my-stocks-tab';
+import { PremiumsTab } from '@/components/operations/premiums-tab';
 import { MarketStatusBadge } from '@/components/shared/market-status-badge';
 import {
   listOperations,
@@ -28,7 +29,7 @@ import type { Operation, Withdrawal, StrategySettings } from '@/lib/types/databa
 import { findOperationsNeedingExerciseCheck, shouldMarkAsExercised } from '@/lib/market-hours/exercise-check';
 
 export default function OperacoesPage() {
-  const [subTab, setSubTab] = useState<'PUT' | 'CALL' | 'ACOES'>('PUT');
+  const [subTab, setSubTab] = useState<'PUT' | 'CALL' | 'ACOES' | 'PREMIOS'>('PUT');
   const [operations, setOperations] = useState<Operation[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [strategySettings, setStrategySettings] = useState<StrategySettings | null>(null);
@@ -296,7 +297,7 @@ export default function OperacoesPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          {subTab !== 'ACOES' && (
+          {subTab !== 'ACOES' && subTab !== 'PREMIOS' && (
             <button
               onClick={() => handleAddOperation(subTab)}
               disabled={addingOperation}
@@ -357,11 +358,19 @@ export default function OperacoesPage() {
               >
                 Minhas Ações
               </button>
+                            <button
+                onClick={() => setSubTab('PREMIOS')}
+                className={`rounded-md px-4 py-1.5 text-xs font-bold transition-colors ${
+                  subTab === 'PREMIOS' ? 'bg-primary-accent/15 text-primary-accent' : 'text-muted-foreground hover:bg-surface-hover'
+                }`}
+              >
+                Prêmios
+              </button>
             </div>
           </div>
       </div>
 
-      {subTab !== 'ACOES' && (
+      {subTab !== 'ACOES' && subTab !== 'PREMIOS' && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
           <div className="flex items-baseline gap-1.5">
             <span className="text-xs text-muted-foreground">Abertas</span>
@@ -447,7 +456,9 @@ export default function OperacoesPage() {
             </>
           )}
 
-          {subTab === 'ACOES' && <MyStocksTab />}
+                    {subTab === 'ACOES' && <MyStocksTab />}
+
+          {subTab === 'PREMIOS' && <PremiumsTab operations={filteredByHolder} onChanged={refresh} />}
         </>
 
       {closingOp && (
