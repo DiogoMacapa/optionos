@@ -14,6 +14,7 @@ import type {
   CalculatorRow,
   CalculatorSettings,
   Goal,
+  WatchlistTicker,
 } from '@/lib/types/database';
 
 // ---------------------------------------------------------------
@@ -617,5 +618,42 @@ export async function updateGoal(id: string, patch: Partial<Pick<Goal, 'name' | 
 
 export async function deleteGoal(id: string): Promise<void> {
   const { error } = await supabase.from('goals').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------
+// Watchlist (faixa de cotações do topo do Dashboard)
+// ---------------------------------------------------------------
+export async function listWatchlistTickers(): Promise<WatchlistTicker[]> {
+  const { data, error } = await supabase.from('watchlist_tickers').select('*').order('sort_order').order('ticker');
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function addWatchlistTicker(ticker: string): Promise<WatchlistTicker> {
+  const clean = ticker.trim().toUpperCase();
+
+  const { data: existing } = await supabase.from('watchlist_tickers').select('*').eq('ticker', clean).maybeSingle();
+  if (existing) return existing;
+
+  const { data: lastRow } = await supabase
+    .from('watchlist_tickers')
+    .select('sort_order')
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextOrder = (lastRow?.sort_order ?? -1) + 1;
+
+  const { data, error } = await supabase
+    .from('watchlist_tickers')
+    .insert({ ticker: clean, sort_order: nextOrder })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function removeWatchlistTicker(id: string): Promise<void> {
+  const { error } = await supabase.from('watchlist_tickers').delete().eq('id', id);
   if (error) throw error;
 }
