@@ -2,7 +2,7 @@
 
 :root {
   /* ===== OptionOS Design Tokens — Dark mode (padrão) ===== */
-  --background: #0b0d10;
+  --background: #0b0f17;
   --surface: #14171c;
   --surface-hover: #191d23;
   --surface-elevated: #1b1f26;
@@ -13,23 +13,48 @@
   --muted-foreground: #8b92a0;
   --faint-foreground: #565c68;
 
-  /* Acento primário: verde-menta (prêmio, lucro, positivo) */
   --accent: #3ecf8e;
   --accent-foreground: #0b0d10;
   --accent-muted: #1a3329;
 
-  /* Risco / negativo / exercício */
   --danger: #f0654a;
   --danger-muted: #2e1a16;
 
-  /* Atenção / regular */
   --warning: #e8b84b;
   --warning-muted: #2e2716;
 
-  /* Informativo */
   --info: #5b9cf0;
 
   --radius: 0.625rem;
+
+  --glass-bg: rgba(21, 29, 42, 0.64);
+  --glass-bg-strong: rgba(21, 29, 42, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.08);
+
+  --primary-accent: #10b981;
+  --accent-glow: rgba(16, 185, 129, 0.15);
+  --accent-glow-strong: rgba(16, 185, 129, 0.35);
+  --badge-bg: rgba(16, 185, 129, 0.12);
+  --badge-text: #34d399;
+  --primary-accent-border: rgba(16, 185, 129, 0.3);
+}
+
+[data-system='diogo'] {
+  --primary-accent: #10b981;
+  --accent-glow: rgba(16, 185, 129, 0.15);
+  --accent-glow-strong: rgba(16, 185, 129, 0.35);
+  --badge-bg: rgba(16, 185, 129, 0.12);
+  --badge-text: #34d399;
+  --primary-accent-border: rgba(16, 185, 129, 0.3);
+}
+
+[data-system='mae'] {
+  --primary-accent: #3b82f6;
+  --accent-glow: rgba(59, 130, 246, 0.15);
+  --accent-glow-strong: rgba(59, 130, 246, 0.35);
+  --badge-bg: rgba(59, 130, 246, 0.12);
+  --badge-text: #60a5fa;
+  --primary-accent-border: rgba(59, 130, 246, 0.3);
 }
 
 @theme inline {
@@ -53,6 +78,14 @@
   --radius-lg: var(--radius);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-glass: var(--glass-bg);
+  --color-glass-strong: var(--glass-bg-strong);
+  --color-glass-border: var(--glass-border);
+  --color-primary-accent: var(--primary-accent);
+  --color-primary-accent-border: var(--primary-accent-border);
+  --color-badge-bg: var(--badge-bg);
+  --color-badge-text: var(--badge-text);
 }
 
 * {
@@ -66,7 +99,6 @@ body {
   font-feature-settings: "cv11", "ss01";
 }
 
-/* Números financeiros sempre em mono — reforça leitura tipo terminal */
 .font-tabular {
   font-family: var(--font-geist-mono);
   font-variant-numeric: tabular-nums;
@@ -92,5 +124,3 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--faint-foreground);
 }
-
-
