@@ -170,6 +170,11 @@ function PremiumRowItem({ row, isMae, onChanged }: { row: ComputedRow; isMae: bo
             Aberta — valor estimado
           </span>
         )}
+        {op.status === 'rolada' && (
+          <span className="rounded-full bg-warning-muted px-2 py-0.5 text-[10px] font-medium text-warning">
+            Rolada — IR fica na perna seguinte
+          </span>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
