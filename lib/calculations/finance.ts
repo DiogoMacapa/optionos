@@ -62,7 +62,7 @@ export function calculateExpectedPremium({ premium, quantity }: ExpectedPremiumI
  * por natureza da operação, e replicam exatamente o que o usuário já
  * apura na prática.
  */
-const IR_RATE = 0.15;
+export const IR_RATE = 0.15;
 
 export type OptionType = 'PUT' | 'CALL';
 
