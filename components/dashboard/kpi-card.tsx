@@ -15,8 +15,9 @@ export function KpiCard({ label, value, icon: Icon, trend, accent = 'default', o
     <div
       onClick={onClick}
       className={cn(
-        'rounded-xl border border-border bg-surface p-4',
-        onClick && 'cursor-pointer transition-colors hover:border-accent/40 hover:bg-surface-hover'
+        'rounded-xl border border-glass-border bg-glass p-4 backdrop-blur-xl transition-all',
+        onClick &&
+          'cursor-pointer hover:border-primary-accent-border hover:shadow-[0_0_24px_var(--accent-glow)]'
       )}
     >
       <div className="flex items-center justify-between">
