@@ -177,13 +177,17 @@ export interface Operation {
   efficiency_pct: number | null;
   commission_amount: number;
 
-  rolled_to_operation_id: string | null;
+    rolled_to_operation_id: string | null;
   rolled_from_operation_id: string | null;
 
   exercised: boolean;
 
   opened_at: string;
   notes: string | null;
+
+  // Aba Prêmios (controle pessoal, não afeta cálculos do resto do sistema)
+  premium_withdrawn_at: string | null; // null = ainda não sacado
+  commission_pct: number; // só relevante no sistema Mãe — % do prêmio líquido retido como comissão
 
   created_at: string;
   updated_at: string;
