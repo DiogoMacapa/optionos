@@ -46,7 +46,12 @@ export function MonthExpirationGroup({ year, month, operations, defaultOpen = tr
   const hasClosedOps = operations.some((o) => o.status !== 'aberta' && o.net_profit !== null);
 
   return (
-    <div className={cn('rounded-xl border bg-surface transition-colors', open ? 'border-accent/25' : 'border-border')}>
+    <div
+      className={cn(
+        'rounded-xl border bg-glass backdrop-blur-xl transition-colors',
+        open ? 'border-primary-accent-border' : 'border-glass-border'
+      )}
+    >
       <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between px-4 py-3 text-left">
         <div className="flex items-center gap-2">
           {open ? (
