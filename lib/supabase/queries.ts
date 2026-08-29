@@ -15,6 +15,7 @@ import type {
   CalculatorSettings,
   Goal,
   WatchlistTicker,
+  FridayClose,
 } from '@/lib/types/database';
 
 // ---------------------------------------------------------------
@@ -658,4 +659,13 @@ export async function addWatchlistTicker(ticker: string): Promise<WatchlistTicke
 export async function removeWatchlistTicker(id: string): Promise<void> {
   const { error } = await supabase.from('watchlist_tickers').delete().eq('id', id);
   if (error) throw error;
+}
+
+// ---------------------------------------------------------------
+// Fechamentos de sexta-feira (captura automática via cron job)
+// ---------------------------------------------------------------
+export async function listFridayCloses(): Promise<FridayClose[]> {
+  const { data, error } = await supabase.from('friday_closes').select('*').order('close_date', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
 }
