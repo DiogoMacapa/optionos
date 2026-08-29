@@ -1,0 +1,539 @@
+diff --git a/app/(dashboard)/dashboard/page.tsx b/app/(dashboard)/dashboard/page.tsx
+index c727dc2..8ac40a1 100644
+--- a/app/(dashboard)/dashboard/page.tsx
++++ b/app/(dashboard)/dashboard/page.tsx
+@@ -15,6 +15,7 @@ import {
+ } from 'lucide-react';
+ import { KpiCard } from '@/components/dashboard/kpi-card';
+ import { PatrimonyHeroCard } from '@/components/dashboard/patrimony-hero-card';
++import { TickerBar } from '@/components/dashboard/ticker-bar';
+ import { LineChartCard } from '@/components/dashboard/line-chart-card';
+ import { PieChartCard } from '@/components/dashboard/pie-chart-card';
+ import { BarChartCard } from '@/components/dashboard/bar-chart-card';
+@@ -193,6 +194,8 @@ export default function DashboardPage() {
+         </div>
+       )}
+ 
++      <TickerBar />
++
+       <PatrimonyHeroCard
+         currentEquity={kpis.currentEquity}
+         totalProfit={kpis.totalProfit}
+diff --git a/app/(dashboard)/layout.tsx b/app/(dashboard)/layout.tsx
+index c5884d9..f0f6634 100644
+--- a/app/(dashboard)/layout.tsx
++++ b/app/(dashboard)/layout.tsx
+@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
+ import { useRouter } from 'next/navigation';
+ import { TopNav } from '@/components/layout/top-nav';
+ import { MobileNav } from '@/components/layout/mobile-nav';
++import { getActiveSystem } from '@/lib/supabase/client';
+ 
+ export default function DashboardGroupLayout({ children }: { children: React.ReactNode }) {
+   const router = useRouter();
+@@ -24,7 +25,7 @@ export default function DashboardGroupLayout({ children }: { children: React.Rea
+   if (!checked) return null;
+ 
+   return (
+-    <div className="min-h-screen bg-background">
++    <div className="min-h-screen bg-background" data-system={getActiveSystem()}>
+       <TopNav />
+       <main className="pb-20 md:pb-0">
+         <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8">{children}</div>
+diff --git a/app/globals.css b/app/globals.css
+index 606e935..91bd3dd 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -2,7 +2,7 @@
+ 
+ :root {
+   /* ===== OptionOS Design Tokens — Dark mode (padrão) ===== */
+-  --background: #0b0d10;
++  --background: #0b0f17;
+   --surface: #14171c;
+   --surface-hover: #191d23;
+   --surface-elevated: #1b1f26;
+@@ -13,7 +13,9 @@
+   --muted-foreground: #8b92a0;
+   --faint-foreground: #565c68;
+ 
+-  /* Acento primário: verde-menta (prêmio, lucro, positivo) */
++  /* Acento semântico universal: prêmio/lucro/positivo — independe do
++     perfil ativo (Diogo ou Mãe). Não confundir com --primary-accent
++     abaixo, que é a cor de MARCA de cada perfil. */
+   --accent: #3ecf8e;
+   --accent-foreground: #0b0d10;
+   --accent-muted: #1a3329;
+@@ -26,10 +28,47 @@
+   --warning: #e8b84b;
+   --warning-muted: #2e2716;
+ 
+-  /* Informativo */
++  /* Informativo (uso geral — badges informativos, não é a cor de marca) */
+   --info: #5b9cf0;
+ 
+   --radius: 0.625rem;
++
++  /* ===== Glassmorphism — superfícies translúcidas ===== */
++  /* Usadas em Cards, TopNav e Tabelas (não em popovers/menus, que
++     continuam com --surface opaco para manter legibilidade). */
++  --glass-bg: rgba(21, 29, 42, 0.64);
++  --glass-bg-strong: rgba(21, 29, 42, 0.82);
++  --glass-border: rgba(255, 255, 255, 0.08);
++
++  /* ===== Marca do perfil ativo =====
++     Sobrescrita por [data-system="diogo"|"mae"] logo abaixo. Valor
++     default (Diogo) cobre o instante antes da escolha de sistema. */
++  --primary-accent: #10b981; /* Emerald 500 */
++  --accent-glow: rgba(16, 185, 129, 0.15);
++  --accent-glow-strong: rgba(16, 185, 129, 0.35);
++  --badge-bg: rgba(16, 185, 129, 0.12);
++  --badge-text: #34d399;
++  --primary-accent-border: rgba(16, 185, 129, 0.3);
++}
++
++/* Perfil Diogo — Esmeralda Neon */
++[data-system='diogo'] {
++  --primary-accent: #10b981;
++  --accent-glow: rgba(16, 185, 129, 0.15);
++  --accent-glow-strong: rgba(16, 185, 129, 0.35);
++  --badge-bg: rgba(16, 185, 129, 0.12);
++  --badge-text: #34d399;
++  --primary-accent-border: rgba(16, 185, 129, 0.3);
++}
++
++/* Perfil Mãe — Safira Elétrica */
++[data-system='mae'] {
++  --primary-accent: #3b82f6;
++  --accent-glow: rgba(59, 130, 246, 0.15);
++  --accent-glow-strong: rgba(59, 130, 246, 0.35);
++  --badge-bg: rgba(59, 130, 246, 0.12);
++  --badge-text: #60a5fa;
++  --primary-accent-border: rgba(59, 130, 246, 0.3);
+ }
+ 
+ @theme inline {
+@@ -53,6 +92,15 @@
+   --radius-lg: var(--radius);
+   --font-sans: var(--font-geist-sans);
+   --font-mono: var(--font-geist-mono);
++
++  /* Glassmorphism + marca dinâmica */
++  --color-glass: var(--glass-bg);
++  --color-glass-strong: var(--glass-bg-strong);
++  --color-glass-border: var(--glass-border);
++  --color-primary-accent: var(--primary-accent);
++  --color-primary-accent-border: var(--primary-accent-border);
++  --color-badge-bg: var(--badge-bg);
++  --color-badge-text: var(--badge-text);
+ }
+ 
+ * {
+diff --git a/components/dashboard/kpi-card.tsx b/components/dashboard/kpi-card.tsx
+index 919bf5f..6cb196d 100644
+--- a/components/dashboard/kpi-card.tsx
++++ b/components/dashboard/kpi-card.tsx
+@@ -15,8 +15,9 @@ export function KpiCard({ label, value, icon: Icon, trend, accent = 'default', o
+     <div
+       onClick={onClick}
+       className={cn(
+-        'rounded-xl border border-border bg-surface p-4',
+-        onClick && 'cursor-pointer transition-colors hover:border-accent/40 hover:bg-surface-hover'
++        'rounded-xl border border-glass-border bg-glass p-4 backdrop-blur-xl transition-all',
++        onClick &&
++          'cursor-pointer hover:border-primary-accent-border hover:shadow-[0_0_24px_var(--accent-glow)]'
+       )}
+     >
+       <div className="flex items-center justify-between">
+diff --git a/components/dashboard/patrimony-hero-card.tsx b/components/dashboard/patrimony-hero-card.tsx
+index 5264611..c074173 100644
+--- a/components/dashboard/patrimony-hero-card.tsx
++++ b/components/dashboard/patrimony-hero-card.tsx
+@@ -20,10 +20,13 @@ interface PatrimonyHeroCardProps {
+  */
+ export function PatrimonyHeroCard({ currentEquity, totalProfit, successRatePct, equitySeries, onProfitClick }: PatrimonyHeroCardProps) {
+   return (
+-    <div className="relative overflow-hidden rounded-2xl border border-accent/15 bg-gradient-to-br from-accent-muted via-accent-muted/40 to-surface px-6 py-5">
++    <div
++      className="relative overflow-hidden rounded-2xl border border-primary-accent-border bg-glass-strong px-6 py-5 shadow-[0_0_60px_-15px_var(--accent-glow-strong)] backdrop-blur-xl"
++      style={{ backgroundImage: 'linear-gradient(to bottom right, var(--accent-glow), transparent 60%)' }}
++    >
+       <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
+         <div>
+-          <div className="text-[11px] uppercase tracking-wide text-accent">Patrimônio atual</div>
++          <div className="text-[11px] uppercase tracking-wide text-primary-accent">Patrimônio atual</div>
+           <div className="mt-1 font-tabular text-[28px] font-semibold leading-none text-foreground sm:text-[32px]">
+             {formatBRL(currentEquity)}
+           </div>
+@@ -36,7 +39,7 @@ export function PatrimonyHeroCard({ currentEquity, totalProfit, successRatePct,
+               {totalProfit >= 0 ? '+' : ''}
+               {formatBRL(totalProfit)} no período
+             </button>
+-            <span className="text-accent/80">{formatPct(successRatePct, 1)} taxa de sucesso</span>
++            <span className="text-primary-accent/80">{formatPct(successRatePct, 1)} taxa de sucesso</span>
+           </div>
+         </div>
+       </div>
+@@ -47,12 +50,12 @@ export function PatrimonyHeroCard({ currentEquity, totalProfit, successRatePct,
+             <AreaChart data={equitySeries} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+               <defs>
+                 <linearGradient id="hero-gradient" x1="0" y1="0" x2="0" y2="1">
+-                  <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.4} />
+-                  <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
++                  <stop offset="0%" stopColor="var(--primary-accent)" stopOpacity={0.4} />
++                  <stop offset="100%" stopColor="var(--primary-accent)" stopOpacity={0} />
+                 </linearGradient>
+               </defs>
+               <YAxis hide domain={['dataMin', 'dataMax']} />
+-              <Area type="monotone" dataKey="value" stroke="var(--accent)" strokeWidth={2} fill="url(#hero-gradient)" dot={false} />
++              <Area type="monotone" dataKey="value" stroke="var(--primary-accent)" strokeWidth={2} fill="url(#hero-gradient)" dot={false} />
+             </AreaChart>
+           </ResponsiveContainer>
+         </div>
+diff --git a/components/dashboard/ticker-bar.tsx b/components/dashboard/ticker-bar.tsx
+new file mode 100644
+index 0000000..72b0347
+--- /dev/null
++++ b/components/dashboard/ticker-bar.tsx
+@@ -0,0 +1,209 @@
++'use client';
++
++import { useEffect, useRef, useState } from 'react';
++import { Plus, X, RefreshCw } from 'lucide-react';
++import { formatNumber, formatPct } from '@/lib/utils';
++import { listWatchlistTickers, addWatchlistTicker, removeWatchlistTicker } from '@/lib/supabase/queries';
++import type { WatchlistTicker } from '@/lib/types/database';
++
++interface QuoteState {
++  price: number | null;
++  changePercent: number | null;
++  loading: boolean;
++  error: boolean;
++}
++
++// 5 min — a brapi.dev (usada em /api/quote) tem 15.000 requisições grátis
++// por mês, compartilhadas com o resto do sistema (checagem de exercício,
++// calculadoras). Um intervalo curto demais aqui estoura a cota rápido.
++const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
++
++/**
++ * Faixa de cotações no topo do Dashboard. Diferente da tabela `assets`
++ * (que só ganha uma linha quando existe operação aberta), aqui o
++ * usuário cadastra livremente qualquer ativo que queira acompanhar —
++ * lista fica salva no Supabase, então é a mesma em qualquer aparelho.
++ */
++export function TickerBar() {
++  const [tickers, setTickers] = useState<WatchlistTicker[]>([]);
++  const [quotes, setQuotes] = useState<Record<string, QuoteState>>({});
++  const [loadingList, setLoadingList] = useState(true);
++  const [input, setInput] = useState('');
++  const [addError, setAddError] = useState<string | null>(null);
++  const [adding, setAdding] = useState(false);
++  const mountedRef = useRef(true);
++
++  useEffect(() => {
++    mountedRef.current = true;
++    return () => {
++      mountedRef.current = false;
++    };
++  }, []);
++
++  useEffect(() => {
++    listWatchlistTickers()
++      .then((rows) => {
++        if (mountedRef.current) setTickers(rows);
++      })
++      .catch(() => {})
++      .finally(() => {
++        if (mountedRef.current) setLoadingList(false);
++      });
++  }, []);
++
++  useEffect(() => {
++    if (tickers.length === 0) return;
++    refreshQuotes(tickers);
++    const interval = setInterval(() => refreshQuotes(tickers), REFRESH_INTERVAL_MS);
++    return () => clearInterval(interval);
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [tickers.map((t) => t.ticker).join(',')]);
++
++  async function refreshQuotes(list: WatchlistTicker[]) {
++    setQuotes((prev) => {
++      const next = { ...prev };
++      for (const t of list) {
++        const current = next[t.ticker];
++        next[t.ticker] = {
++          price: current?.price ?? null,
++          changePercent: current?.changePercent ?? null,
++          loading: true,
++          error: false,
++        };
++      }
++      return next;
++    });
++
++    await Promise.all(
++      list.map(async (t) => {
++        try {
++          const res = await fetch(`/api/quote?ticker=${encodeURIComponent(t.ticker)}`);
++          if (!res.ok) throw new Error('quote failed');
++          const data = await res.json();
++          if (!mountedRef.current) return;
++          setQuotes((prev) => ({
++            ...prev,
++            [t.ticker]: { price: Number(data.price), changePercent: data.changePercent ?? null, loading: false, error: false },
++          }));
++        } catch {
++          if (!mountedRef.current) return;
++          setQuotes((prev) => ({
++            ...prev,
++            [t.ticker]: { price: prev[t.ticker]?.price ?? null, changePercent: prev[t.ticker]?.changePercent ?? null, loading: false, error: true },
++          }));
++        }
++      })
++    );
++  }
++
++  async function handleAdd() {
++    const clean = input.trim().toUpperCase();
++    if (!clean) {
++      setAddError('Digite o código do ativo primeiro.');
++      return;
++    }
++    if (tickers.some((t) => t.ticker === clean)) {
++      setAddError('Esse ativo já está na lista.');
++      return;
++    }
++    setAddError(null);
++    setAdding(true);
++    try {
++      const created = await addWatchlistTicker(clean);
++      setTickers((prev) => [...prev, created]);
++      setInput('');
++      refreshQuotes([created]);
++    } catch {
++      setAddError('Não foi possível adicionar agora. Tente de novo.');
++    } finally {
++      setAdding(false);
++    }
++  }
++
++  async function handleRemove(t: WatchlistTicker) {
++    setTickers((prev) => prev.filter((x) => x.id !== t.id));
++    try {
++      await removeWatchlistTicker(t.id);
++    } catch {
++      // Não conseguiu apagar no banco — recarrega a lista real pra não ficar dessincronizado.
++      listWatchlistTickers().then(setTickers).catch(() => {});
++    }
++  }
++
++  if (loadingList) return null;
++
++  return (
++    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-glass-border bg-glass px-3 py-2 backdrop-blur-xl">
++      {tickers.map((t) => {
++        const q = quotes[t.ticker];
++        const positive = (q?.changePercent ?? 0) >= 0;
++        return (
++          <div
++            key={t.id}
++            className="group flex items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.03] px-2.5 py-1 font-tabular text-xs"
++          >
++            <span className="text-muted-foreground">{t.ticker}</span>
++            {q?.error ? (
++              <span className="text-faint-foreground">—</span>
++            ) : q?.loading || !q ? (
++              <span className="text-faint-foreground">...</span>
++            ) : (
++              <>
++                <span className="text-foreground">{formatNumber(q.price)}</span>
++                {q.changePercent !== null && (
++                  <span className={positive ? 'text-accent' : 'text-danger'}>
++                    {positive ? '+' : ''}
++                    {formatPct(q.changePercent, 1)}
++                  </span>
++                )}
++              </>
++            )}
++            <button
++              onClick={() => handleRemove(t)}
++              aria-label={`Remover ${t.ticker} da lista`}
++              className="text-faint-foreground opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
++            >
++              <X className="h-3 w-3" />
++            </button>
++          </div>
++        );
++      })}
++
++      <div className="flex flex-1 items-center gap-1.5">
++        <input
++          value={input}
++          onChange={(e) => {
++            setInput(e.target.value);
++            if (addError) setAddError(null);
++          }}
++          onKeyDown={(e) => {
++            if (e.key === 'Enter') handleAdd();
++          }}
++          placeholder="Adicionar ativo, ex: WEGE3"
++          maxLength={7}
++          className="w-36 rounded-full border border-white/10 bg-transparent px-3 py-1 font-tabular text-xs uppercase text-foreground placeholder:text-faint-foreground placeholder:normal-case focus:outline-none focus:ring-1 focus:ring-primary-accent-border"
++        />
++        <button
++          onClick={handleAdd}
++          disabled={adding}
++          className="flex items-center gap-1 rounded-full bg-primary-accent/15 px-2.5 py-1 text-xs font-medium text-primary-accent transition-opacity hover:opacity-80 disabled:opacity-50"
++        >
++          <Plus className="h-3 w-3" />
++          Adicionar
++        </button>
++        {tickers.length > 0 && (
++          <button
++            onClick={() => refreshQuotes(tickers)}
++            aria-label="Atualizar cotações"
++            title="Atualizar cotações"
++            className="ml-auto text-faint-foreground transition-colors hover:text-foreground"
++          >
++            <RefreshCw className="h-3.5 w-3.5" />
++          </button>
++        )}
++      </div>
++
++      {addError && <span className="w-full text-xs text-danger">{addError}</span>}
++    </div>
++  );
++}
+diff --git a/components/ui/card.tsx b/components/ui/card.tsx
+index 444f086..13ee58a 100644
+--- a/components/ui/card.tsx
++++ b/components/ui/card.tsx
+@@ -5,7 +5,10 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
+   ({ className, ...props }, ref) => (
+     <div
+       ref={ref}
+-      className={cn('rounded-xl border border-border bg-surface', className)}
++      className={cn(
++        'rounded-xl border border-glass-border bg-glass shadow-[0_8px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl',
++        className
++      )}
+       {...props}
+     />
+   )
+diff --git a/lib/supabase/queries.ts b/lib/supabase/queries.ts
+index 6520425..f6b24f5 100644
+--- a/lib/supabase/queries.ts
++++ b/lib/supabase/queries.ts
+@@ -14,6 +14,7 @@ import type {
+   CalculatorRow,
+   CalculatorSettings,
+   Goal,
++  WatchlistTicker,
+ } from '@/lib/types/database';
+ 
+ // ---------------------------------------------------------------
+@@ -619,3 +620,40 @@ export async function deleteGoal(id: string): Promise<void> {
+   const { error } = await supabase.from('goals').delete().eq('id', id);
+   if (error) throw error;
+ }
++
++// ---------------------------------------------------------------
++// Watchlist (faixa de cotações do topo do Dashboard)
++// ---------------------------------------------------------------
++export async function listWatchlistTickers(): Promise<WatchlistTicker[]> {
++  const { data, error } = await supabase.from('watchlist_tickers').select('*').order('sort_order').order('ticker');
++  if (error) throw error;
++  return data ?? [];
++}
++
++export async function addWatchlistTicker(ticker: string): Promise<WatchlistTicker> {
++  const clean = ticker.trim().toUpperCase();
++
++  const { data: existing } = await supabase.from('watchlist_tickers').select('*').eq('ticker', clean).maybeSingle();
++  if (existing) return existing;
++
++  const { data: lastRow } = await supabase
++    .from('watchlist_tickers')
++    .select('sort_order')
++    .order('sort_order', { ascending: false })
++    .limit(1)
++    .maybeSingle();
++  const nextOrder = (lastRow?.sort_order ?? -1) + 1;
++
++  const { data, error } = await supabase
++    .from('watchlist_tickers')
++    .insert({ ticker: clean, sort_order: nextOrder })
++    .select('*')
++    .single();
++  if (error) throw error;
++  return data;
++}
++
++export async function removeWatchlistTicker(id: string): Promise<void> {
++  const { error } = await supabase.from('watchlist_tickers').delete().eq('id', id);
++  if (error) throw error;
++}
+diff --git a/lib/types/database.ts b/lib/types/database.ts
+index 52abbb9..7d72c04 100644
+--- a/lib/types/database.ts
++++ b/lib/types/database.ts
+@@ -313,3 +313,11 @@ export interface Goal {
+   created_at: string;
+   updated_at: string;
+ }
++
++/** Ativo cadastrado manualmente na faixa de cotações do topo do Dashboard — independente de ter operação aberta. */
++export interface WatchlistTicker {
++  id: string;
++  ticker: string;
++  sort_order: number;
++  created_at: string;
++}
+diff --git a/supabase/migrations/0022_watchlist_tickers.sql b/supabase/migrations/0022_watchlist_tickers.sql
+new file mode 100644
+index 0000000..d112385
+--- /dev/null
++++ b/supabase/migrations/0022_watchlist_tickers.sql
+@@ -0,0 +1,41 @@
++-- ============================================================
++-- OptionOS — Migration 0022
++-- Faixa de cotações do topo do Dashboard: lista de ativos que o
++-- usuário cadastra manualmente para acompanhar, independente de
++-- ter operação aberta neles (diferente da tabela assets, que só
++-- ganha uma linha quando existe operação).
++--
++-- Criada nos dois schemas (diogo e mae) porque cada perfil tem
++-- sua própria lista de acompanhamento.
++-- ============================================================
++
++create table diogo.watchlist_tickers (
++  id uuid primary key default gen_random_uuid(),
++  ticker text not null unique,
++  sort_order integer not null default 0,
++  created_at timestamptz not null default now()
++);
++
++alter table diogo.watchlist_tickers enable row level security;
++create policy "allow all - watchlist_tickers" on diogo.watchlist_tickers for all using (true) with check (true);
++grant all on diogo.watchlist_tickers to anon, authenticated, service_role;
++
++create table mae.watchlist_tickers (
++  id uuid primary key default gen_random_uuid(),
++  ticker text not null unique,
++  sort_order integer not null default 0,
++  created_at timestamptz not null default now()
++);
++
++alter table mae.watchlist_tickers enable row level security;
++create policy "allow all - watchlist_tickers" on mae.watchlist_tickers for all using (true) with check (true);
++grant all on mae.watchlist_tickers to anon, authenticated, service_role;
++
++-- Semeia a lista do Diogo com os ativos que ele já opera hoje —
++-- assim a faixa não começa vazia. A do Mãe fica vazia mesmo
++-- (ele ainda não tem operações), pra ser cadastrada na mão.
++insert into diogo.watchlist_tickers (ticker, sort_order)
++select ticker, row_number() over (order by ticker) - 1
++from diogo.assets
++where active = true
++on conflict (ticker) do nothing;
