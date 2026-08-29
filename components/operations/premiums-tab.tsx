@@ -33,8 +33,10 @@ function computeNetPremium(op: Operation): { netPremium: number; estimated: bool
   return { netPremium: op.premium_received - estimatedIr, estimated: true };
 }
 
-function monthKey(dateStr: string): string {
-  return dateStr.slice(0, 7);
+function monthKey(op: Operation): string {
+  const raw = op.expiration || op.opened_at;
+  if (raw && raw.length >= 7) return raw.slice(0, 7);
+  return 'sem-data';
 }
 
 export function PremiumsTab({ operations, onChanged }: PremiumsTabProps) {
@@ -43,17 +45,20 @@ export function PremiumsTab({ operations, onChanged }: PremiumsTabProps) {
   const groups = useMemo(() => {
     const map = new Map<string, Operation[]>();
     for (const op of operations) {
-      const key = monthKey(op.opened_at);
+      const key = monthKey(op);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(op);
     }
     return Array.from(map.entries())
-      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .sort((a, b) => {
+        if (a[0] === 'sem-data') return 1;
+        if (b[0] === 'sem-data') return -1;
+        return a[0] < b[0] ? 1 : -1; // mês mais recente primeiro
+      })
       .map(([key, ops]) => ({
         key,
-        year: Number(key.slice(0, 4)),
-        month: Number(key.slice(5, 7)) - 1,
-        operations: [...ops].sort((a, b) => new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime()),
+        label: key === 'sem-data' ? 'Sem data' : `${MONTH_NAMES[Number(key.slice(5, 7)) - 1]} de ${key.slice(0, 4)}`,
+        operations: [...ops].sort((a, b) => new Date(b.expiration || b.opened_at).getTime() - new Date(a.expiration || a.opened_at).getTime()),
       }));
   }, [operations]);
 
@@ -69,21 +74,19 @@ export function PremiumsTab({ operations, onChanged }: PremiumsTabProps) {
   return (
     <div className="flex flex-col gap-3">
       {groups.map((g) => (
-        <PremiumMonthGroup key={g.key} year={g.year} month={g.month} operations={g.operations} isMae={isMae} onChanged={onChanged} />
+        <PremiumMonthGroup key={g.key} label={g.label} operations={g.operations} isMae={isMae} onChanged={onChanged} />
       ))}
     </div>
   );
 }
 
 function PremiumMonthGroup({
-  year,
-  month,
+  label,
   operations,
   isMae,
   onChanged,
 }: {
-  year: number;
-  month: number;
+  label: string;
   operations: Operation[];
   isMae: boolean;
   onChanged: () => void;
@@ -102,9 +105,7 @@ function PremiumMonthGroup({
           ) : (
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
           )}
-          <span className="text-sm font-bold text-foreground">
-            {MONTH_NAMES[month]} de {year}
-          </span>
+          <span className="text-sm font-bold text-foreground">{label}</span>
           <span className="font-tabular text-xs font-semibold text-primary-accent">{formatBRL(monthTotal)}</span>
         </div>
         <span className="whitespace-nowrap text-xs text-faint-foreground">
@@ -165,6 +166,11 @@ function PremiumRowItem({ row, isMae, onChanged }: { row: ComputedRow; isMae: bo
         <span className="font-semibold text-foreground">{op.asset?.ticker ?? '—'}</span>
         {op.week_label && <span className="text-faint-foreground">{op.week_label}</span>}
         <span className="text-faint-foreground">{formatDate(op.opened_at)}</span>
+        {!op.opened_at && (
+          <span className="rounded-full bg-danger-muted px-2 py-0.5 text-[10px] font-medium text-danger">
+            Sem data de abertura — edite na aba PUT/CALL
+          </span>
+        )}
         {op.status === 'aberta' && (
           <span className="rounded-full bg-warning-muted px-2 py-0.5 text-[10px] font-medium text-warning">
             Aberta — valor estimado
