@@ -325,3 +325,12 @@ export interface WatchlistTicker {
   sort_order: number;
   created_at: string;
 }
+
+/** Cotação de fechamento capturada automaticamente toda sexta-feira (cron job), para os ativos da faixa do topo. */
+export interface FridayClose {
+  id: string;
+  ticker: string;
+  close_date: string; // YYYY-MM-DD, sempre uma sexta-feira
+  price: number;
+  created_at: string;
+}
