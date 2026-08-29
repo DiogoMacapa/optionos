@@ -313,3 +313,11 @@ export interface Goal {
   created_at: string;
   updated_at: string;
 }
+
+/** Ativo cadastrado manualmente na faixa de cotações do topo do Dashboard — independente de ter operação aberta. */
+export interface WatchlistTicker {
+  id: string;
+  ticker: string;
+  sort_order: number;
+  created_at: string;
+}
