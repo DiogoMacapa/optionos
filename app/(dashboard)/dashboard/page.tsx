@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { KpiCard } from '@/components/dashboard/kpi-card';
 import { PatrimonyHeroCard } from '@/components/dashboard/patrimony-hero-card';
+import { TickerBar } from '@/components/dashboard/ticker-bar';
 import { LineChartCard } from '@/components/dashboard/line-chart-card';
 import { PieChartCard } from '@/components/dashboard/pie-chart-card';
 import { BarChartCard } from '@/components/dashboard/bar-chart-card';
@@ -192,7 +193,7 @@ export default function DashboardPage() {
           Nenhuma operação registrada ainda. Registre uma operação em <strong className="text-foreground">Operações</strong> para começar a ver dados aqui.
         </div>
       )}
-
+      <TickerBar />
       <PatrimonyHeroCard
         currentEquity={kpis.currentEquity}
         totalProfit={kpis.totalProfit}
