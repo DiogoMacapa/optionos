@@ -1,7 +1,7 @@
 'use client';
 
-import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
-import { formatBRL, formatPct, cn } from '@/lib/utils';
+import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
+import { formatBRL, formatPct, formatDate, cn } from '@/lib/utils';
 
 interface PatrimonyHeroCardProps {
   currentEquity: number | null;
@@ -9,6 +9,16 @@ interface PatrimonyHeroCardProps {
   successRatePct: number;
   equitySeries: { date: string; value: number }[];
   onProfitClick?: () => void;
+}
+
+function HeroTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-glass-border bg-glass-strong px-3 py-2 text-xs backdrop-blur-xl">
+      <div className="text-faint-foreground">{formatDate(label)}</div>
+      <div className="mt-0.5 font-tabular font-semibold text-foreground">{formatBRL(payload[0].value)}</div>
+    </div>
+  );
 }
 
 export function PatrimonyHeroCard({ currentEquity, totalProfit, successRatePct, equitySeries, onProfitClick }: PatrimonyHeroCardProps) {
@@ -48,7 +58,17 @@ export function PatrimonyHeroCard({ currentEquity, totalProfit, successRatePct, 
                 </linearGradient>
               </defs>
               <YAxis hide domain={['dataMin', 'dataMax']} />
-              <Area type="monotone" dataKey="value" stroke="var(--primary-accent)" strokeWidth={2} fill="url(#hero-gradient)" dot={false} />
+              <XAxis dataKey="date" hide />
+              <Tooltip content={<HeroTooltip />} cursor={{ stroke: 'var(--primary-accent)', strokeOpacity: 0.25 }} />
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="var(--primary-accent)"
+                strokeWidth={2}
+                fill="url(#hero-gradient)"
+                dot={false}
+                activeDot={{ r: 4, fill: 'var(--primary-accent)', stroke: 'var(--background)', strokeWidth: 2 }}
+              />
             </AreaChart>
           </ResponsiveContainer>
         </div>
