@@ -28,28 +28,10 @@ interface CallOperationsTableProps {
   onClose: (op: Operation) => void;
 }
 
-/**
- * Colunas seguindo a planilha "Venda Call - Diogo": Status, Semana,
- * Cotação, Ativo, Ticker (código da série), Data, Qnt, Prêmio Venda,
- * Total Prêmio, Strike, Spread, PM, Lucro/Prejuízo, Prêmio+L/P,
- * Distância, Taxa, Prêmio Recompra, Total Recompra, Resultado, IR,
- * Lucro Final, Eficiência, Exercido?.
- *
- * Diferenças reais de PUT (validadas com a planilha):
- *   - PM (preço médio das ações) substitui Caixa/Garantia/Cobertura
- *     (não fazem sentido em Covered Call — a "garantia" já são as
- *     ações que o usuário possui)
- *   - Taxa = Prêmio ÷ COTAÇÃO (na PUT é ÷ Strike)
- *   - Lucro/Prejuízo = Strike − PM (por ação) — só existe em CALL
- *   - IR sobre o prêmio BRUTO quando não exercida; sobre
- *     (Prêmio + (Strike−PM)×Qtd) quando exercida
- */
-/** Arredonda para 2 casas decimais — evita erro de ponto flutuante acumulado em valores monetários (mesma função já usada em PutOperationsTable, duplicada aqui porque cada tabela é um módulo isolado). */
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-/** Arredonda para 4 casas decimais (mesma escala usada no banco para valores por ação). */
 function round4(n: number): number {
   return Math.round((n + Number.EPSILON) * 10000) / 10000;
 }
@@ -57,14 +39,14 @@ function round4(n: number): number {
 function calcCallRow(op: Operation, averagePrice: number | null, irFrozen: boolean) {
   const quote = op.reference_quote;
   const strike = op.strike;
-  const premium = op.quantity > 0 ? round4(op.premium_received / op.quantity) : 0; // Prêmio Venda (por ação)
+  const premium = op.quantity > 0 ? round4(op.premium_received / op.quantity) : 0;
   const exercised = op.exercised_label === 'Sim';
 
   const spread = quote !== null && quote !== undefined ? round2(quote - strike) : null;
   const distance = quote !== null && quote !== undefined && quote !== 0 ? (quote - strike) / quote : null;
-  const rate = quote !== null && quote !== undefined && quote !== 0 ? premium / quote : 0; // Taxa = Prêmio ÷ Cotação
+  const rate = quote !== null && quote !== undefined && quote !== 0 ? premium / quote : 0;
 
-  const lucroPrejuizoPorAcao = averagePrice !== null ? round2(strike - averagePrice) : null; // por ação
+  const lucroPrejuizoPorAcao = averagePrice !== null ? round2(strike - averagePrice) : null;
   const stockSaleResult = exercised && averagePrice !== null ? calculateStockSaleResult(strike, averagePrice, op.quantity) : 0;
 
   const totalPremium = round2(op.premium_received);
@@ -75,7 +57,7 @@ function calcCallRow(op: Operation, averagePrice: number | null, irFrozen: boole
   let netProfit: number | null = null;
   let resultado: number | null = null;
   let efficiency: number | null = null;
-  let isEstimate = false; // true quando o IR mostrado é uma projeção (sem recompra ainda preenchida), não o valor real ainda
+  let isEstimate = false;
 
   if (op.status === 'aberta') {
     if (exercised && averagePrice !== null) {
@@ -97,11 +79,6 @@ function calcCallRow(op: Operation, averagePrice: number | null, irFrozen: boole
       netProfit = round2(live.netProfit);
       efficiency = round2(live.efficiencyPct);
     } else {
-      // Ainda sem recompra preenchida (nem marcada como exercida) — estima o
-      // IR e o Lucro Final assumindo o cenário mais simples: não exercida,
-      // sem custo de recompra, IR sobre o prêmio bruto total. Muda para o
-      // valor real assim que o usuário preencher a recompra ou marcar como
-      // exercida.
       const estimated = calculateNetProfit({ optionType: 'CALL', premiumReceived: totalPremium, buybackCost: 0, irFrozen });
       resultado = round2(estimated.grossResult);
       ir = round2(estimated.ir);
@@ -157,8 +134,6 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const lastAutoFetchedTicker = useRef<Record<string, string>>({});
 
-  // Carrega o PM de cada combinação (ativo, titular) das operações abertas —
-  // fora do render, disparado quando a lista de operações muda.
   useEffect(() => {
     let cancelled = false;
     const openOps = operations.filter((o) => o.status === 'aberta');
@@ -308,7 +283,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
             const editable = op.status === 'aberta';
 
             return (
-              <tr key={op.id} className={cn('border-t border-border transition-colors hover:bg-surface-elevated/30', !editable && 'opacity-60 hover:opacity-100')}>
+              <tr key={op.id} className={cn('border-t border-glass-border transition-colors hover:bg-white/[0.03]', !editable && 'opacity-60 hover:opacity-100')}>
                 <Td>
                   <Badge variant={op.status === 'aberta' ? 'outline' : 'default'}>{op.status}</Badge>
                 </Td>
@@ -548,7 +523,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
 function Th({ children, width }: { children?: React.ReactNode; width?: number }) {
   return (
     <th
-      className="whitespace-nowrap border-b border-border bg-surface-elevated/40 px-1.5 pb-2 pt-1.5 text-center text-[9.5px] font-bold uppercase tracking-wider text-faint-foreground"
+      className="whitespace-nowrap border-b border-glass-border bg-white/[0.03] px-1.5 pb-2 pt-1.5 text-center text-[9.5px] font-bold uppercase tracking-wider text-faint-foreground"
       style={{ width }}
     >
       {children}
