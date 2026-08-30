@@ -1,28 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CalendarCheck2 } from 'lucide-react';
+import { CalendarCheck2, History } from 'lucide-react';
 import { formatNumber, formatDate } from '@/lib/utils';
 import { listWatchlistTickers, listFridayCloses } from '@/lib/supabase/queries';
 import type { WatchlistTicker, FridayClose } from '@/lib/types/database';
 
-// Janela móvel: a média sempre considera só as sextas mais recentes,
-// não o histórico inteiro — reflete melhor o comportamento atual do
-// ativo pra decidir strike. Mude esse número se quiser outra janela.
 const FRIDAY_WINDOW = 4;
 
-/**
- * Média de fechamento de sexta-feira dos ativos cadastrados na faixa
- * do topo (watchlist_tickers). Os dados vêm de friday_closes, que é
- * populada automaticamente pelo cron job semanal — nada aqui é
- * calculado ou digitado manualmente pelo usuário.
- */
 export function FridayCloseSummary() {
   const [tickers, setTickers] = useState<WatchlistTicker[] | null>(null);
   const [closes, setCloses] = useState<FridayClose[]>([]);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    Promise.all([listWatchlistTickers(), listFridayCloses()])
+  function reload() {
+    return Promise.all([listWatchlistTickers(), listFridayCloses()])
       .then(([t, c]) => {
         setTickers(t);
         setCloses(c);
@@ -31,7 +24,26 @@ export function FridayCloseSummary() {
         setTickers([]);
         setCloses([]);
       });
+  }
+
+  useEffect(() => {
+    reload();
   }, []);
+
+  async function handleBackfill() {
+    setBackfilling(true);
+    setBackfillMsg(null);
+    try {
+      const res = await fetch('/api/backfill-friday-closes', { method: 'POST' });
+      if (!res.ok) throw new Error('Falha ao preencher histórico.');
+      await reload();
+      setBackfillMsg('Histórico preenchido.');
+    } catch {
+      setBackfillMsg('Não deu pra preencher agora — tenta de novo em instantes.');
+    } finally {
+      setBackfilling(false);
+    }
+  }
 
   if (tickers === null || tickers.length === 0) return null;
 
@@ -48,6 +60,19 @@ export function FridayCloseSummary() {
           <CalendarCheck2 className="h-3.5 w-3.5 text-primary-accent" />
           <h3 className="text-sm font-semibold text-foreground">Média das últimas 4 sextas (fechamento)</h3>
         </div>
+        <div className="flex items-center gap-2">
+          {backfillMsg && <span className="text-[11px] text-faint-foreground">{backfillMsg}</span>}
+          <button
+            onClick={handleBackfill}
+            disabled={backfilling}
+            className="flex items-center gap-1 rounded-full border border-glass-border bg-white/[0.03] px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-opacity hover:opacity-80 disabled:opacity-50"
+          >
+            <History className="h-3 w-3" />
+            {backfilling ? 'Preenchendo…' : 'Preencher histórico'}
+          </button>
+        </div>
+      </div>
+      <div className="mb-3">
         <span className="text-[11px] text-faint-foreground">Captura automática toda sexta, depois do pregão fechar</span>
       </div>
 
