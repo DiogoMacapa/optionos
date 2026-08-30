@@ -60,11 +60,11 @@ export function MyStocksTab() {
 
       <div className="flex flex-col gap-3">
         {positions.map((p) => (
-          <div key={p.id} className="overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-accent-muted via-accent-muted/40 to-surface px-5 py-4">
+          <div key={p.id} className="overflow-hidden rounded-2xl border border-primary-accent-border bg-glass backdrop-blur-xl px-5 py-4">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/15">
-                  <span className="font-tabular text-[10px] font-bold text-accent">{(p.asset?.ticker ?? '—').slice(0, 4)}</span>
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-accent/15">
+                  <span className="font-tabular text-[10px] font-bold text-primary-accent">{(p.asset?.ticker ?? '—').slice(0, 4)}</span>
                 </div>
                 <div>
                   <div className="font-tabular text-base font-bold text-foreground">{p.asset?.ticker ?? '—'}</div>
@@ -85,7 +85,7 @@ export function MyStocksTab() {
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground" title="Custo ajustado (Strike − Prêmio) — usado no cálculo de uma futura Covered Call">
                   Preço Médio
                 </div>
-                <div className="mt-0.5 font-tabular text-lg font-semibold text-accent">{formatBRL(p.average_price)}</div>
+                <div className="mt-0.5 font-tabular text-lg font-semibold text-primary-accent">{formatBRL(p.average_price)}</div>
               </div>
               <div>
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground" title="Valor bruto que saiu do caixa (Strike × Qtd, sem descontar prêmio)">
@@ -108,7 +108,7 @@ export function MyStocksTab() {
           </p>
           <div className="mt-3 flex flex-col gap-1.5">
             {saleHistory.map((h) => (
-              <div key={h.id} className="flex items-center justify-between rounded-lg border border-border bg-surface px-3.5 py-2.5">
+              <div key={h.id} className="flex items-center justify-between rounded-lg border border-glass-border bg-glass backdrop-blur-xl px-3.5 py-2.5">
                 <div className="flex items-center gap-2.5">
                   <span className="font-tabular text-sm font-bold text-foreground">{h.asset?.ticker ?? '—'}</span>
                   <span className="text-xs text-muted-foreground">
