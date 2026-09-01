@@ -278,4 +278,387 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
             return (
               <tr key={op.id} className={cn('border-t border-glass-border transition-colors hover:bg-white/[0.03]', !editable && 'opacity-60 hover:opacity-100')}>
                 <Td>
-                  <Badge variant={op.status
+                  <Badge variant={op.status === 'aberta' ? 'outline' : 'default'}>{op.status}</Badge>
+                </Td>
+
+                <Td width={90}>
+                  {editable ? (
+                    <WeekRangePicker
+                      value={op.week_label}
+                      onSelect={(label, expiration) => saveField(op, { week_label: label, expiration })}
+                    />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-muted-foreground">{op.week_label ?? '—'}</span>
+                  )}
+                </Td>
+
+                <Td width={100}>
+                  {editable ? (
+                    <DatePickerField value={op.opened_at?.slice(0, 10) ?? null} onSelect={(date) => saveField(op, { opened_at: date })} />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-muted-foreground">{formatDate(op.opened_at)}</span>
+                  )}
+                </Td>
+
+                <Td width={78}>
+                  {editable ? (
+                    <InlineField
+                      key={`ativo-${op.id}-${op.asset?.ticker ?? ''}`}
+                      initialValue={op.asset?.ticker ?? ''}
+                      onCommit={(v) => saveTicker(op, v)}
+                      placeholder="VALE3"
+                      width={68}
+                    />
+                  ) : (
+                    <span className="font-tabular text-xs font-bold text-foreground">{op.asset?.ticker ?? '—'}</span>
+                  )}
+                </Td>
+
+                <Td width={90}>
+                  {editable ? (
+                    <InlineField
+                      key={`symbol-${op.id}-${op.option_symbol ?? ''}`}
+                      initialValue={op.option_symbol ?? ''}
+                      onCommit={(v) => saveField(op, { option_symbol: v.trim() === '' ? null : v.trim().toUpperCase() })}
+                      placeholder="VALEW76"
+                      width={78}
+                    />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-foreground">{op.option_symbol ?? '—'}</span>
+                  )}
+                </Td>
+
+                <Td width={92}>
+                  {editable ? (
+                    <div className="flex items-center justify-center gap-1">
+                      <InlineField
+                        key={`quote-${op.id}-${op.reference_quote}`}
+                        initialValue={op.reference_quote !== null ? String(op.reference_quote).replace('.', ',') : ''}
+                        onCommit={(v) => saveField(op, { reference_quote: v.trim() === '' ? null : parseBRNumber(v) })}
+                        placeholder="0,00"
+                        width={54}
+                      />
+                      <button
+                        onClick={() => fetchQuote(op.id, op.asset?.ticker ?? '')}
+                        disabled={!op.asset?.ticker || quoteLoadingId === op.id}
+                        title="Atualizar cotação"
+                        className="shrink-0 text-faint-foreground hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <RefreshCw className={cn('h-3 w-3', quoteLoadingId === op.id && 'animate-spin')} />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-muted-foreground">{formatNumber(op.reference_quote, 2)}</span>
+                  )}
+                </Td>
+
+                <Td>
+                  {!editable ? (
+                    op.exercised_label ? (
+                      <Badge variant={op.exercised_label === 'Sim' ? 'danger' : op.exercised_label === 'Rolagem' ? 'warning' : 'success'}>
+                        {op.exercised_label === 'Sim' ? 'Exercido' : op.exercised_label}
+                      </Badge>
+                    ) : (
+                      <span className="text-[11px] text-faint-foreground">—</span>
+                    )
+                  ) : r.quote !== null && r.quote !== undefined ? (
+                    (() => {
+                      const rec = computeRollRecommendation(r.strike, r.quote, 'PUT');
+                      if (rec.level === 'unknown') return <span className="text-[11px] text-faint-foreground">—</span>;
+                      const badgeVariant = rec.level === 'roll' ? 'danger' : rec.level === 'watch' ? 'warning' : 'success';
+                      const label = rec.level === 'roll' ? 'Provável' : rec.level === 'watch' ? 'Atenção' : 'Improvável';
+                      return <Badge variant={badgeVariant}>{label}</Badge>;
+                    })()
+                  ) : (
+                    <span className="text-[11px] text-faint-foreground">—</span>
+                  )}
+                </Td>
+
+                <Td width={70}>
+                  {editable ? (
+                    <InlineField
+                      key={`qty-${op.id}-${op.quantity}`}
+                      initialValue={String(op.quantity)}
+                      onCommit={(v) => {
+                        const latest = currentOp(op.id) ?? op;
+                        const newQty = Math.round(parseBRNumber(v));
+                        const perShare = latest.quantity > 0 ? latest.premium_received / latest.quantity : 0;
+                        saveField(latest, { quantity: newQty, premium_received: round4(perShare * newQty) });
+                      }}
+                      placeholder="0"
+                      width={56}
+                    />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-muted-foreground">{op.quantity.toLocaleString('pt-BR')}</span>
+                  )}
+                </Td>
+
+                <Td width={80}>
+                  {editable ? (
+                    <InlineField
+                      key={`premium-${op.id}-${r.premium}`}
+                      initialValue={formatPreciseNumber(r.premium)}
+                      onCommit={(v) => {
+                        const latest = currentOp(op.id) ?? op;
+                        saveField(latest, { premium_received: parseBRNumber(v) * latest.quantity });
+                      }}
+                      placeholder="0,00"
+                      width={56}
+                    />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] font-semibold text-accent">{formatNumber(r.premium, 2)}</span>
+                  )}
+                </Td>
+
+                <Td>
+                  <span className="font-tabular text-[11.5px] font-bold text-accent">{formatBRL(r.totalPremium)}</span>
+                </Td>
+
+                <Td width={80}>
+                  {editable ? (
+                    <InlineField
+                      key={`strike-${op.id}-${r.strike}`}
+                      initialValue={formatNumber(r.strike, 2)}
+                      onCommit={(v) => saveField(op, { strike: parseBRNumber(v) })}
+                      placeholder="0,00"
+                      width={56}
+                      danger={r.isExpensive}
+                    />
+                  ) : (
+                    <span className={cn('font-tabular text-[11.5px] font-semibold', r.isExpensive ? 'text-danger' : 'text-accent')}>
+                      {formatNumber(r.strike, 2)}
+                    </span>
+                  )}
+                </Td>
+
+                <Td>
+                  <span className="font-tabular text-[11.5px] text-muted-foreground">
+                    {r.distance !== null ? formatPct(r.distance * 100, 2) : '—'}
+                  </span>
+                </Td>
+
+                <Td width={144}>
+                  <ExerciseRiskGauge strike={r.strike} quote={r.quote} optionType="PUT" />
+                </Td>
+
+                <Td width={100}>
+                  <RiskGaugeSpeedometer recommendation={computeRollRecommendation(r.strike, r.quote, 'PUT')} />
+                </Td>
+
+                <Td width={130}>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <Badge variant={r.isExpensive ? 'danger' : 'success'}>{r.isExpensive ? 'Cara' : 'Barata'}</Badge>
+                    <InlineField
+                      key={`ceiling-${op.id}-${r.ceiling}`}
+                      initialValue={r.ceiling !== null ? String(r.ceiling).replace('.', ',') : ''}
+                      onCommit={(v) => saveCeiling(op, v)}
+                      placeholder="teto"
+                      width={48}
+                    />
+                  </div>
+                </Td>
+
+                <Td>
+                  <span className="font-tabular text-[11.5px] text-muted-foreground">{r.spread !== null ? formatNumber(r.spread, 2) : '—'}</span>
+                </Td>
+
+                <Td>
+                  <span className="font-tabular text-[11.5px] text-accent">{formatBRL(r.guarantee)}</span>
+                </Td>
+
+                <Td width={100}>
+                  {editable ? (
+                    <InlineField
+                      key={`cash-${op.id}-${r.cash}`}
+                      initialValue={r.cash !== null && r.cash !== undefined ? formatNumber(r.cash, 2) : ''}
+                      onCommit={(v) => saveField(op, { committed_capital: v.trim() === '' ? null : parseBRNumber(v) })}
+                      placeholder="0,00"
+                      width={80}
+                    />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-muted-foreground">{r.cash !== null ? formatBRL(r.cash) : '—'}</span>
+                  )}
+                </Td>
+
+                <Td>
+                  {r.hasCoverage !== null ? (
+                    <Badge variant={r.hasCoverage ? 'success' : 'danger'}>{r.hasCoverage ? 'Tem' : 'Não'}</Badge>
+                  ) : (
+                    <span className="text-[11px] text-faint-foreground">—</span>
+                  )}
+                </Td>
+
+                <Td>
+                  <span className="font-tabular text-[11.5px] text-accent">{formatPct(r.rate * 100, 2)}</span>
+                </Td>
+
+                <Td>
+                  <span className="font-tabular text-[11.5px] text-muted-foreground">{formatDate(op.expiration)}</span>
+                </Td>
+
+                <Td width={90}>
+                  {editable ? (
+                    <InlineField
+                      key={`buybackshare-${op.id}-${r.buybackPerShare}`}
+                      initialValue={r.buybackPerShare !== null && r.buybackPerShare !== undefined ? formatNumber(r.buybackPerShare, 2) : ''}
+                      onCommit={(v) => saveField(op, { buyback_premium: v.trim() === '' ? null : parseBRNumber(v) })}
+                      placeholder="vazio"
+                      width={64}
+                    />
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-foreground">{r.buybackPerShare !== null && r.buybackPerShare !== undefined ? formatNumber(r.buybackPerShare, 2) : '—'}</span>
+                  )}
+                </Td>
+
+                <Td>
+                  <span className="font-tabular text-[11.5px] text-accent">{r.totalBuyback !== null ? formatBRL(r.totalBuyback) : '—'}</span>
+                </Td>
+
+                <Td>
+                  <span className="font-tabular text-[11.5px] text-accent">{r.sellMinusBuyback !== null ? formatBRL(r.sellMinusBuyback) : '—'}</span>
+                </Td>
+
+                <Td>
+                  {r.ir !== null ? (
+                    <span
+                      className={cn('font-tabular text-[11.5px] text-danger', r.isEstimate && 'italic opacity-70')}
+                      title={r.isEstimate ? 'Projeção — assume expiração sem custo de recompra. Preencha o Valor Recompra para o cálculo real.' : undefined}
+                    >
+                      {formatBRL(r.ir)}
+                      {r.isEstimate && '*'}
+                    </span>
+                  ) : (
+                    <span className="font-tabular text-[11.5px] text-danger">—</span>
+                  )}
+                </Td>
+
+                <Td>
+                  {r.netProfit !== null ? (
+                    <span
+                      className={cn('font-tabular text-[11.5px] font-bold text-accent', r.isEstimate && 'italic opacity-70')}
+                      title={r.isEstimate ? 'Projeção — assume expiração sem custo de recompra. Preencha o Valor Recompra para o cálculo real.' : undefined}
+                    >
+                      {formatBRL(r.netProfit)}
+                      {r.isEstimate && '*'}
+                    </span>
+                  ) : (
+                    <span className="font-tabular text-[11.5px] font-bold text-accent">—</span>
+                  )}
+                </Td>
+
+                <Td>
+                  <span className="font-tabular text-[11.5px] text-accent">{r.efficiency !== null ? formatPct(r.efficiency, 1) : '—'}</span>
+                </Td>
+
+                <Td width={90}>
+                  {r.netProfit !== null && r.netProfit < 0 ? (
+                    <span
+                      title="Prejuízo — confira a compensação de IR no seu app externo"
+                      className="inline-flex items-center gap-1 rounded border border-danger/30 bg-danger-muted px-1.5 py-0.5 text-[10px] font-semibold text-danger"
+                    >
+                      Conferir IR
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-faint-foreground">—</span>
+                  )}
+                </Td>
+
+                <Td width={100}>
+                  <select
+                    value={op.exercised_label ?? ''}
+                    onChange={(e) => saveField(op, { exercised_label: (e.target.value || null) as Operation['exercised_label'] })}
+                    className={cn(
+                      'w-full rounded border px-1.5 py-1 text-center text-[11px] outline-none',
+                      op.exercised_label
+                        ? 'border-border bg-transparent text-foreground'
+                        : 'border-border bg-surface-elevated text-faint-foreground'
+                    )}
+                  >
+                    <option value="">—</option>
+                    <option value="Sim">Exercido</option>
+                    <option value="Não">Não</option>
+                    <option value="Rolagem">Rolagem</option>
+                  </select>
+                </Td>
+
+                <Td>
+                  <div className="flex items-center justify-center gap-1.5">
+                    {editable && (
+                      <button
+                        onClick={() => onClose(op)}
+                        className="whitespace-nowrap rounded-md border border-border bg-surface-elevated px-2 py-1 text-[10.5px] font-medium text-foreground hover:bg-surface-hover"
+                      >
+                        Encerrar
+                      </button>
+                    )}
+                    {!editable && (
+                      <button
+                        onClick={() => handleToggleWithdrawal(op)}
+                        title={withdrawalsByOperation[op.id] ? 'Marcado como sacado — clique para desmarcar' : 'Marcar prêmio desta operação como sacado'}
+                        className={cn(
+                          'flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 text-[10.5px] font-medium',
+                          withdrawalsByOperation[op.id]
+                            ? 'border-warning/40 bg-warning-muted text-warning'
+                            : 'border-border bg-surface-elevated text-foreground hover:bg-surface-hover'
+                        )}
+                      >
+                        <Wallet className="h-3 w-3" />
+                        {withdrawalsByOperation[op.id] ? 'Sacado' : 'Sacar'}
+                      </button>
+                    )}
+                    {!editable && (
+                      <button
+                        onClick={() => handleToggleEquityImpact(op)}
+                        title={
+                          op.counts_toward_equity
+                            ? 'Conta no cálculo de Patrimônio — clique para marcar como histórico (não conta de novo)'
+                            : 'Marcada como histórico — não conta no cálculo de Patrimônio (mas conta no Aprendizado)'
+                        }
+                        className={cn(
+                          'flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 text-[10.5px] font-medium',
+                          !op.counts_toward_equity
+                            ? 'border-info/40 bg-info/10 text-info'
+                            : 'border-border bg-surface-elevated text-faint-foreground hover:bg-surface-hover'
+                        )}
+                      >
+                        <History className="h-3 w-3" />
+                        {op.counts_toward_equity ? 'Conta' : 'Histórico'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(op)}
+                      title="Excluir operação"
+                      className="text-faint-foreground hover:text-danger"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                    {savingId === op.id && <RefreshCw className="h-3 w-3 animate-spin text-accent" />}
+                  </div>
+                </Td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Th({ children, width }: { children?: React.ReactNode; width?: number }) {
+  return (
+    <th
+      className="whitespace-nowrap border-b border-glass-border bg-white/[0.03] px-1.5 pb-2 pt-1.5 text-center text-[9.5px] font-bold uppercase tracking-wider text-faint-foreground"
+      style={{ width }}
+    >
+      {children}
+    </th>
+  );
+}
+
+function Td({ children, width }: { children: React.ReactNode; width?: number }) {
+  return (
+    <td className="px-1.5 py-1 text-center align-middle" style={{ width }}>
+      {children}
+    </td>
+  );
+}
