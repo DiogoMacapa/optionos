@@ -114,6 +114,7 @@ function InlineField({
     <input
       value={value}
       onChange={(e) => setValue(e.target.value)}
+      onFocus={(e) => e.target.select()}
       onBlur={() => {
         if (value !== initialValue) onCommit(value);
       }}
