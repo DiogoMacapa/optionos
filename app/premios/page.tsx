@@ -25,38 +25,31 @@ interface Agg {
   estimated: boolean;
 }
 
-interface RowCalc {
-  ir: number;
-  net: number;
-  estimated: boolean;
-}
-
-function computeRow(op: Operation): RowCalc {
-  const isClosed = op.status !== 'aberta';
-  if (isClosed && op.ir_amount !== null && op.net_profit !== null) {
-    return { ir: op.ir_amount, net: op.net_profit, estimated: false };
-  }
+function computeNetPremium(op: Operation): { net: number; estimated: boolean } {
+  const hasFinalIr = op.status !== 'aberta' && op.ir_amount !== null;
+  if (hasFinalIr) return { net: op.premium_received - (op.ir_amount ?? 0), estimated: false };
   const estimatedIr = op.premium_received > 0 ? op.premium_received * IR_RATE : 0;
-  return { ir: estimatedIr, net: op.premium_received - estimatedIr, estimated: true };
+  return { net: op.premium_received - estimatedIr, estimated: true };
 }
 
 function aggregate(ops: Operation[]): Agg {
   let gross = 0;
-  let ir = 0;
   let net = 0;
   let estimated = false;
   for (const op of ops) {
-    const r = computeRow(op);
+    const { net: opNet, estimated: opEstimated } = computeNetPremium(op);
     gross += op.premium_received;
-    ir += r.ir;
-    net += r.net;
-    if (r.estimated) estimated = true;
+    net += opNet;
+    if (opEstimated) estimated = true;
   }
-  return { gross, ir, net, estimated };
+  return { gross, ir: gross - net, net, estimated };
 }
 
 function aggregateCommission(ops: Operation[]): number {
-  return ops.reduce((sum, op) => sum + computeRow(op).net * (op.commission_pct / 100), 0);
+  return ops.reduce((sum, op) => {
+    const { net } = computeNetPremium(op);
+    return sum + net * (op.commission_pct / 100);
+  }, 0);
 }
 
 function monthKeyOf(op: Operation): string {
@@ -233,11 +226,10 @@ export default function PremiosCombinadosPage() {
             </div>
 
             <p className="text-[11px] text-faint-foreground">
-              * Líquido = prêmio bruto − IR, e quando é uma CALL exercida, também soma o ganho ou perda da venda da
-              ação (Strike vs Preço Médio). Em operações ainda abertas, é uma estimativa (15% de IR sobre o prêmio,
-              sem considerar venda de ação) e ajusta sozinho quando a operação fechar. Comissão = líquido da Mãe × %
-              configurado em cada operação dela (normalmente 50%, editável na aba Prêmios de dentro do sistema Mãe).
-              Prêmio + Comissão = líquido do Diogo + comissão da Mãe, na mesma semana.
+              * Líquido = prêmio bruto − IR. Em operações ainda abertas, o IR é uma estimativa (15% sobre o prêmio) e
+              ajusta sozinho quando a operação fechar. Comissão = líquido da Mãe × % configurado em cada operação dela
+              (normalmente 50%, editável na aba Prêmios de dentro do sistema Mãe). Prêmio + Comissão = líquido do Diogo
+              + comissão da Mãe, na mesma semana.
             </p>
           </div>
         )}
