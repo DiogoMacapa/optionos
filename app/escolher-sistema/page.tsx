@@ -1,22 +1,13 @@
 'use client';
 
-import { TrendingUp, User, Users } from 'lucide-react';
+import Link from 'next/link';
+import { TrendingUp, User, Users, PiggyBank } from 'lucide-react';
 import { setActiveSystem, type SystemProfile } from '@/lib/supabase/client';
 
-/**
- * Tela de escolha entre os dois sistemas independentes (Diogo e Mãe) —
- * cada um com dados isolados em schemas separados dentro do mesmo
- * projeto Supabase. Só aparece antes de o usuário escolher; depois a
- * escolha fica salva no navegador (localStorage), sem precisar
- * escolher de novo a cada visita.
- */
 export default function EscolherSistemaPage() {
 
   function choose(system: SystemProfile) {
     setActiveSystem(system);
-    // Recarrega a página inteira (não navegação client-side) — garante que
-    // o cliente Supabase correto seja usado em toda consulta a partir daqui,
-    // já que a instância ativa é decidida uma vez, no carregamento do módulo.
     window.location.href = '/dashboard';
   }
 
@@ -34,7 +25,7 @@ export default function EscolherSistemaPage() {
         <p className="mt-1 text-sm text-muted-foreground">Cada um tem seus próprios dados, totalmente separados.</p>
       </div>
 
-      <div className="grid w-full max-w-md grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-3">
         <button
           onClick={() => choose('diogo')}
           className="flex flex-col items-center gap-3 rounded-2xl border border-accent/25 bg-gradient-to-br from-accent-muted via-accent-muted/40 to-surface px-6 py-8 transition-transform hover:scale-[1.02]"
@@ -54,6 +45,16 @@ export default function EscolherSistemaPage() {
           </div>
           <span className="text-base font-semibold text-foreground">Mãe</span>
         </button>
+
+        <Link
+          href="/premios"
+          className="flex flex-col items-center gap-3 rounded-2xl border border-warning/25 bg-gradient-to-br from-warning-muted via-warning-muted/40 to-surface px-6 py-8 transition-transform hover:scale-[1.02]"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-warning-muted">
+            <PiggyBank className="h-6 w-6 text-warning" />
+          </div>
+          <span className="text-base font-semibold text-foreground">Prêmios</span>
+        </Link>
       </div>
     </div>
   );
