@@ -25,31 +25,38 @@ interface Agg {
   estimated: boolean;
 }
 
-function computeNetPremium(op: Operation): { net: number; estimated: boolean } {
-  const hasFinalIr = op.status !== 'aberta' && op.ir_amount !== null;
-  if (hasFinalIr) return { net: op.premium_received - (op.ir_amount ?? 0), estimated: false };
+interface RowCalc {
+  ir: number;
+  net: number;
+  estimated: boolean;
+}
+
+function computeRow(op: Operation): RowCalc {
+  const isClosed = op.status !== 'aberta';
+  if (isClosed && op.ir_amount !== null && op.net_profit !== null) {
+    return { ir: op.ir_amount, net: op.net_profit, estimated: false };
+  }
   const estimatedIr = op.premium_received > 0 ? op.premium_received * IR_RATE : 0;
-  return { net: op.premium_received - estimatedIr, estimated: true };
+  return { ir: estimatedIr, net: op.premium_received - estimatedIr, estimated: true };
 }
 
 function aggregate(ops: Operation[]): Agg {
   let gross = 0;
+  let ir = 0;
   let net = 0;
   let estimated = false;
   for (const op of ops) {
-    const { net: opNet, estimated: opEstimated } = computeNetPremium(op);
+    const r = computeRow(op);
     gross += op.premium_received;
-    net += opNet;
-    if (opEstimated) estimated = true;
+    ir += r.ir;
+    net += r.net;
+    if (r.estimated) estimated = true;
   }
-  return { gross, ir: gross - net, net, estimated };
+  return { gross, ir, net, estimated };
 }
 
 function aggregateCommission(ops: Operation[]): number {
-  return ops.reduce((sum, op) => {
-    const { net } = computeNetPremium(op);
-    return sum + net * (op.commission_pct / 100);
-  }, 0);
+  return ops.reduce((sum, op) => sum + computeRow(op).net * (op.commission_pct / 100), 0);
 }
 
 function monthKeyOf(op: Operation): string {
@@ -195,8 +202,8 @@ export default function PremiosCombinadosPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {months.map((month) => (
-                    <MonthBlock key={month.monthKey} month={month} withdrawn={withdrawn} onToggle={toggleWithdrawn} />
+                  {months.map((month, i) => (
+                    <MonthBlock key={month.monthKey} month={month} withdrawn={withdrawn} onToggle={toggleWithdrawn} isFirst={i === 0} />
                   ))}
                   {months.length === 0 && (
                     <tr>
@@ -208,7 +215,7 @@ export default function PremiosCombinadosPage() {
                 </tbody>
                 {months.length > 0 && (
                   <tfoot>
-                    <tr className="border-t-2 border-glass-border bg-white/[0.04] font-bold">
+                    <tr className="border-t-2 border-primary-accent bg-primary-accent/10 text-sm font-extrabold">
                       <Td align="left">Total geral</Td>
                       <Td><span className="text-accent">{formatBRL(grandTotal.d.gross)}</span></Td>
                       <Td><span className="text-danger">{formatBRL(grandTotal.d.ir)}</span></Td>
@@ -226,10 +233,11 @@ export default function PremiosCombinadosPage() {
             </div>
 
             <p className="text-[11px] text-faint-foreground">
-              * Líquido = prêmio bruto − IR. Em operações ainda abertas, o IR é uma estimativa (15% sobre o prêmio) e
-              ajusta sozinho quando a operação fechar. Comissão = líquido da Mãe × % configurado em cada operação dela
-              (normalmente 50%, editável na aba Prêmios de dentro do sistema Mãe). Prêmio + Comissão = líquido do Diogo
-              + comissão da Mãe, na mesma semana.
+              * Líquido = prêmio bruto − IR, e quando é uma CALL exercida, também soma o ganho ou perda da venda da
+              ação (Strike vs Preço Médio). Em operações ainda abertas, é uma estimativa (15% de IR sobre o prêmio,
+              sem considerar venda de ação) e ajusta sozinho quando a operação fechar. Comissão = líquido da Mãe × %
+              configurado em cada operação dela (normalmente 50%, editável na aba Prêmios de dentro do sistema Mãe).
+              Prêmio + Comissão = líquido do Diogo + comissão da Mãe, na mesma semana.
             </p>
           </div>
         )}
@@ -242,10 +250,12 @@ function MonthBlock({
   month,
   withdrawn,
   onToggle,
+  isFirst,
 }: {
   month: MonthGroup;
   withdrawn: Record<string, boolean>;
   onToggle: (periodKey: string) => void;
+  isFirst: boolean;
 }) {
   const [open, setOpen] = useState(true);
 
@@ -257,13 +267,18 @@ function MonthBlock({
 
   return (
     <>
+      {!isFirst && (
+        <tr aria-hidden="true">
+          <td colSpan={10} className="h-4 bg-transparent p-0" />
+        </tr>
+      )}
       <tr
         onClick={() => setOpen((o) => !o)}
-        className="cursor-pointer border-b border-glass-border bg-white/[0.02] font-semibold hover:bg-white/[0.04]"
+        className="cursor-pointer border-y border-primary-accent-border bg-white/[0.06] text-sm font-bold hover:bg-white/[0.08]"
       >
         <Td align="left">
-          <span className="flex items-center gap-1.5">
-            {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          <span className="flex items-center gap-1.5 py-1">
+            {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             {month.label}
           </span>
         </Td>
@@ -297,6 +312,7 @@ function WeekRowItem({
   const d = aggregate(week.diogoOps);
   const m = aggregate(week.maeOps);
   const commission = aggregateCommission(week.maeOps);
+  const hasDiogoData = week.diogoOps.length > 0;
   const hasMaeData = week.maeOps.length > 0;
 
   return (
@@ -304,12 +320,12 @@ function WeekRowItem({
       <Td align="left">
         <span className="pl-5 text-muted-foreground">{week.weekLabel}</span>
       </Td>
-      <Td>{d.gross > 0 ? <span className="text-accent">{formatBRL(d.gross)}{d.estimated && '*'}</span> : '—'}</Td>
-      <Td>{d.gross > 0 ? <span className="text-danger">{formatBRL(d.ir)}</span> : '—'}</Td>
-      <Td>{d.gross > 0 ? <span className="text-accent">{formatBRL(d.net)}</span> : '—'}</Td>
-      <Td>{m.gross > 0 ? <span className="text-info">{formatBRL(m.gross)}{m.estimated && '*'}</span> : '—'}</Td>
-      <Td>{m.gross > 0 ? <span className="text-danger">{formatBRL(m.ir)}</span> : '—'}</Td>
-      <Td>{m.gross > 0 ? <span className="text-info">{formatBRL(m.net)}</span> : '—'}</Td>
+      <Td>{hasDiogoData ? <span className="text-accent">{formatBRL(d.gross)}{d.estimated && '*'}</span> : '—'}</Td>
+      <Td>{hasDiogoData ? <span className="text-danger">{formatBRL(d.ir)}</span> : '—'}</Td>
+      <Td>{hasDiogoData ? <span className="text-accent">{formatBRL(d.net)}</span> : '—'}</Td>
+      <Td>{hasMaeData ? <span className="text-info">{formatBRL(m.gross)}{m.estimated && '*'}</span> : '—'}</Td>
+      <Td>{hasMaeData ? <span className="text-danger">{formatBRL(m.ir)}</span> : '—'}</Td>
+      <Td>{hasMaeData ? <span className="text-info">{formatBRL(m.net)}</span> : '—'}</Td>
       <Td>
         {hasMaeData ? (
           <span className={cn('font-semibold', withdrawn ? 'text-faint-foreground' : 'text-warning')}>
