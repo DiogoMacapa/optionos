@@ -11,27 +11,12 @@ export async function listOperationsForSystem(system: SystemProfile): Promise<Op
   return (data ?? []) as unknown as Operation[];
 }
 
-export interface CommissionWithdrawal {
-  id: string;
-  period_key: string;
-  withdrawn_at: string;
-}
-
-export async function listCommissionWithdrawals(): Promise<CommissionWithdrawal[]> {
+/** Marca/desmarca a comissão desta operação (só faz sentido em operações da Mãe) como sacada. */
+export async function setCommissionWithdrawn(operationId: string, withdrawn: boolean): Promise<void> {
   const client = getClientFor('mae');
-  const { data, error } = await client.from('commission_withdrawals').select('*');
-  if (error) throw error;
-  return data ?? [];
-}
-
-export async function markCommissionWithdrawn(periodKey: string): Promise<void> {
-  const client = getClientFor('mae');
-  const { error } = await client.from('commission_withdrawals').upsert({ period_key: periodKey }, { onConflict: 'period_key' });
-  if (error) throw error;
-}
-
-export async function unmarkCommissionWithdrawn(periodKey: string): Promise<void> {
-  const client = getClientFor('mae');
-  const { error } = await client.from('commission_withdrawals').delete().eq('period_key', periodKey);
+  const { error } = await client
+    .from('operations')
+    .update({ commission_withdrawn_at: withdrawn ? new Date().toISOString() : null })
+    .eq('id', operationId);
   if (error) throw error;
 }
