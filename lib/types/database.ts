@@ -186,8 +186,9 @@ export interface Operation {
   notes: string | null;
 
   // Aba Prêmios (controle pessoal, não afeta cálculos do resto do sistema)
-  premium_withdrawn_at: string | null; // null = ainda não sacado
+    premium_withdrawn_at: string | null; // null = ainda não sacado
   commission_pct: number; // só relevante no sistema Mãe — % do prêmio líquido retido como comissão
+  commission_withdrawn_at: string | null; // idem, mas para a comissão em si (usado na página /premios)
 
   created_at: string;
   updated_at: string;
