@@ -316,7 +316,9 @@ function OpRowItem({ row, onToggleCommission }: { row: OpRow; onToggleCommission
           '—'
         )}
       </Td>
-      <Td>—</Td>
+      <Td>
+        <span className="font-semibold text-foreground">{formatBRL(isMae ? commission : r.net)}</span>
+      </Td>
     </tr>
   );
 }
