@@ -280,7 +280,7 @@ export default function CalculadorasPage() {
                       </button>
                     </div>
                     {row.ticker.trim() && (
-                      
+<a                      
                         href={quoteUrl}
                         target="_blank"
                         rel="noreferrer"
