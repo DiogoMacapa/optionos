@@ -24,10 +24,23 @@ interface ComputedRow {
   estimated: boolean;
 }
 
+/**
+ * Lucro líquido de verdade: bruto − IR, e quando é uma CALL exercida,
+ * também soma o ganho ou perda da venda da ação (Strike vs Preço
+ * Médio) — exatamente o que já fica guardado em net_profit no
+ * fechamento da operação (mesma definição usada na página /premios,
+ * pra bater certinho com a comissão calculada lá).
+ *
+ * Operação fechada: usa net_profit/ir_amount reais.
+ * Operação aberta (ou fechada sem esses valores por algum motivo):
+ * estima assumindo IR sobre o prêmio bruto, sem considerar venda de
+ * ação — quando a operação fechar de verdade, esse valor se ajusta
+ * sozinho, já que é sempre recalculado a partir dos dados atuais.
+ */
 function computeNetPremium(op: Operation): { netPremium: number; estimated: boolean } {
-  const hasFinalIr = op.status !== 'aberta' && op.ir_amount !== null;
-  if (hasFinalIr) {
-    return { netPremium: op.premium_received - (op.ir_amount ?? 0), estimated: false };
+  const hasFinalData = op.status !== 'aberta' && op.ir_amount !== null && op.net_profit !== null;
+  if (hasFinalData) {
+    return { netPremium: op.net_profit as number, estimated: false };
   }
   const estimatedIr = op.premium_received > 0 ? op.premium_received * IR_RATE : 0;
   return { netPremium: op.premium_received - estimatedIr, estimated: true };
@@ -39,6 +52,12 @@ function monthKey(op: Operation): string {
   return 'sem-data';
 }
 
+/**
+ * Aba de controle pessoal dos prêmios recebidos, organizada por mês
+ * de vencimento da operação — mesmo critério já usado nas abas PUT
+ * e CALL, pra bater certinho entre as telas. Não alimenta nenhum
+ * outro cálculo do sistema — é só um checklist de "já saquei ou não".
+ */
 export function PremiumsTab({ operations, onChanged }: PremiumsTabProps) {
   const [isMae] = useState(() => (typeof window !== 'undefined' ? getActiveSystem() === 'mae' : false));
 
