@@ -134,7 +134,7 @@ export default function CalculadorasPage() {
     setQuoteStatus((s) => ({ ...s, [id]: 'loading' }));
     setQuoteError((e) => ({ ...e, [id]: '' }));
     try {
-      const res = await fetch(`/api/quote?ticker=${encodeURIComponent(t)}`);
+      const res = await fetch('/api/quote?ticker=' + encodeURIComponent(t));
       const data = await res.json();
       if (!res.ok) {
         setQuoteStatus((s) => ({ ...s, [id]: 'error' }));
@@ -280,7 +280,7 @@ export default function CalculadorasPage() {
                     </div>
                     {row.ticker.trim() && (
                       
-                        href={`https://www.google.com/finance/quote/${row.ticker.trim()}:BVMF`}
+                        href={'https://www.google.com/finance/quote/' + row.ticker.trim() + ':BVMF'}
                         target="_blank"
                         rel="noreferrer"
                         className="mt-0.5 inline-flex items-center gap-0.5 text-[9px] text-accent hover:underline"
