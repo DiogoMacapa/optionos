@@ -30,17 +30,12 @@ function calcRow(row: CalculatorRow, cash: number, irFrozen: boolean) {
 
   const rawQty = strike > 0 ? Math.floor(cash / strike) : 0;
   const quantity = Math.floor(rawQty / ROUND_LOT) * ROUND_LOT;
-  const guarantee = strike * quantity; // Garantia = capital necessário para a PUT
+  const guarantee = strike * quantity;
   const totalPremium = premium * quantity;
   const ir = irFrozen ? 0 : totalPremium * 0.15;
   const netProfit = totalPremium - ir;
 
-  // Taxa: igual à fórmula original da planilha do usuário (=Total Prêmio / Caixa) —
-  // mede o retorno sobre o caixa TOTAL disponível, bruto (sem descontar IR).
   const taxaSobreCaixa = cash > 0 ? (totalPremium / cash) * 100 : 0;
-
-  // Rentabilidade líquida: lucro já líquido de IR, sobre a garantia DESTA operação
-  // específica (não o caixa total) — mede o retorno daquela operação isoladamente.
   const rentabLiquida = guarantee > 0 ? (netProfit / guarantee) * 100 : 0;
 
   const exceedsCeiling = ceiling !== null && strike > ceiling;
@@ -58,6 +53,7 @@ export default function CalculadorasPage() {
   const [quoteStatus, setQuoteStatus] = useState<Record<string, 'loading' | 'error' | null>>({});
   const [quoteError, setQuoteError] = useState<Record<string, string>>({});
   const [irFrozen, setIrFrozen] = useState(false);
+  const [bulkRefreshing, setBulkRefreshing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,7 +67,6 @@ export default function CalculadorasPage() {
           getStrategySettings(),
         ]);
         let finalRows = rowsData;
-        // Garante ao menos 3 linhas na primeira visita.
         if (finalRows.length === 0) {
           finalRows = await Promise.all([createCalculatorRow(0), createCalculatorRow(1), createCalculatorRow(2)]);
         }
@@ -91,7 +86,6 @@ export default function CalculadorasPage() {
     };
   }, []);
 
-  // Debounce de gravação por campo — evita uma chamada de rede a cada tecla.
   const rowSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const cashSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -99,10 +93,7 @@ export default function CalculadorasPage() {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
     if (rowSaveTimers.current[id]) clearTimeout(rowSaveTimers.current[id]);
     rowSaveTimers.current[id] = setTimeout(() => {
-      updateCalculatorRow(id, { [field]: value }).catch(() => {
-        // Falha de rede pontual — o valor continua visível na tela; próxima
-        // edição tenta salvar de novo.
-      });
+      updateCalculatorRow(id, { [field]: value }).catch(() => {});
     }, SAVE_DEBOUNCE_MS);
   }
 
@@ -158,10 +149,19 @@ export default function CalculadorasPage() {
     }
   }
 
-  // Busca automática: dispara sozinha ~700ms depois que o usuário para de
-  // digitar o ticker, sem precisar clicar no botão de atualizar.
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const lastAutoFetchedTicker = useRef<Record<string, string>>({});
+
+  async function refreshAllQuotes() {
+    const withTicker = rows.filter((r) => r.ticker.trim() !== '');
+    if (withTicker.length === 0) return;
+    setBulkRefreshing(true);
+    try {
+      await Promise.all(withTicker.map((r) => fetchQuote(r.id, r.ticker)));
+    } finally {
+      setBulkRefreshing(false);
+    }
+  }
 
   useEffect(() => {
     for (const row of rows) {
@@ -193,10 +193,16 @@ export default function CalculadorasPage() {
             automaticamente ao digitar o ativo. Dados salvos no seu Supabase — sincronizam entre dispositivos.
           </p>
         </div>
-        <Button size="sm" onClick={addRow} disabled={loading}>
-          <Plus className="mr-1 h-3.5 w-3.5" />
-          Adicionar operação
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={refreshAllQuotes} disabled={loading || bulkRefreshing || rows.every((r) => !r.ticker.trim())}>
+            <RefreshCw className={cn('mr-1 h-3.5 w-3.5', bulkRefreshing && 'animate-spin')} />
+            Atualizar cotações
+          </Button>
+          <Button size="sm" onClick={addRow} disabled={loading}>
+            <Plus className="mr-1 h-3.5 w-3.5" />
+            Adicionar operação
+          </Button>
+        </div>
       </div>
 
       {irFrozen && (
@@ -273,7 +279,7 @@ export default function CalculadorasPage() {
                       </button>
                     </div>
                     {row.ticker.trim() && (
-                      <a
+                      
                         href={`https://www.google.com/finance/quote/${row.ticker.trim()}:BVMF`}
                         target="_blank"
                         rel="noreferrer"
