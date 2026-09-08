@@ -24,19 +24,6 @@ interface ComputedRow {
   estimated: boolean;
 }
 
-/**
- * Lucro líquido de verdade: bruto − IR, e quando é uma CALL exercida,
- * também soma o ganho ou perda da venda da ação (Strike vs Preço
- * Médio) — exatamente o que já fica guardado em net_profit no
- * fechamento da operação (mesma definição usada na página /premios,
- * pra bater certinho com a comissão calculada lá).
- *
- * Operação fechada: usa net_profit/ir_amount reais.
- * Operação aberta (ou fechada sem esses valores por algum motivo):
- * estima assumindo IR sobre o prêmio bruto, sem considerar venda de
- * ação — quando a operação fechar de verdade, esse valor se ajusta
- * sozinho, já que é sempre recalculado a partir dos dados atuais.
- */
 function computeNetPremium(op: Operation): { netPremium: number; estimated: boolean } {
   const hasFinalData = op.status !== 'aberta' && op.ir_amount !== null && op.net_profit !== null;
   if (hasFinalData) {
@@ -52,12 +39,6 @@ function monthKey(op: Operation): string {
   return 'sem-data';
 }
 
-/**
- * Aba de controle pessoal dos prêmios recebidos, organizada por mês
- * de vencimento da operação — mesmo critério já usado nas abas PUT
- * e CALL, pra bater certinho entre as telas. Não alimenta nenhum
- * outro cálculo do sistema — é só um checklist de "já saquei ou não".
- */
 export function PremiumsTab({ operations, onChanged }: PremiumsTabProps) {
   const [isMae] = useState(() => (typeof window !== 'undefined' ? getActiveSystem() === 'mae' : false));
 
@@ -72,11 +53,11 @@ export function PremiumsTab({ operations, onChanged }: PremiumsTabProps) {
       .sort((a, b) => {
         if (a[0] === 'sem-data') return 1;
         if (b[0] === 'sem-data') return -1;
-        return a[0] < b[0] ? 1 : -1; // mês mais recente primeiro
+        return a[0] < b[0] ? 1 : -1;
       })
       .map(([key, ops]) => ({
         key,
-        label: key === 'sem-data' ? 'Sem data' : `${MONTH_NAMES[Number(key.slice(5, 7)) - 1]} de ${key.slice(0, 4)}`,
+        label: key === 'sem-data' ? 'Sem data' : MONTH_NAMES[Number(key.slice(5, 7)) - 1] + ' de ' + key.slice(0, 4),
         operations: [...ops].sort((a, b) => new Date(b.expiration || b.opened_at).getTime() - new Date(a.expiration || a.opened_at).getTime()),
       }));
   }, [operations]);
