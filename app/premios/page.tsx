@@ -68,7 +68,7 @@ function totalsOf(rows: OpRow[]): MonthTotals {
       commission += commissionOf(op, true);
     }
   }
-  return { diogoNet, maeNet, commission, combined: diogoNet + commission };
+  return { diogoNet, maeNet, commission, combined: diogoNet + maeNet + commission };
 }
 
 export default function PremiosCombinadosPage() {
@@ -214,7 +214,8 @@ export default function PremiosCombinadosPage() {
               ação (Strike vs Preço Médio). Em operações ainda abertas, é uma estimativa (15% de IR sobre o prêmio) e
               ajusta sozinho quando a operação fechar. Comissão = líquido × % configurado na própria operação
               (normalmente 50%, editável na aba Prêmios de dentro do sistema Mãe), só existe em operações da Mãe.
-              Prêmio + Comissão (nas linhas de mês/total) = líquido do Diogo + comissão da Mãe naquele período.
+              Prêmio + Comissão = Líquido + Comissão da mesma linha (em operações do Diogo, Comissão é sempre 0; em
+              linhas de mês/total, soma o líquido combinado dos dois sistemas com a comissão total da Mãe).
             </p>
           </div>
         )}
@@ -317,7 +318,7 @@ function OpRowItem({ row, onToggleCommission }: { row: OpRow; onToggleCommission
         )}
       </Td>
       <Td>
-        <span className="font-semibold text-foreground">{formatBRL(isMae ? commission : r.net)}</span>
+        <span className="font-semibold text-foreground">{formatBRL(r.net + commission)}</span>
       </Td>
     </tr>
   );
