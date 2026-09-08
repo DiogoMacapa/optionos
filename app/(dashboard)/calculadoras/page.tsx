@@ -251,6 +251,7 @@ export default function CalculadorasPage() {
               .map((row) => ({ row, r: calcRow(row, cash, irFrozen) }))
               .sort((a, b) => b.r.totalPremium - a.r.totalPremium)
               .map(({ row, r }) => {
+              const quoteUrl = 'https://www.google.com/finance/quote/' + row.ticker.trim() + ':BVMF';
               return (
                 <tr key={row.id} className="border-t border-border">
                   <Td>
@@ -280,7 +281,7 @@ export default function CalculadorasPage() {
                     </div>
                     {row.ticker.trim() && (
                       
-                        href={'https://www.google.com/finance/quote/' + row.ticker.trim() + ':BVMF'}
+                        href={quoteUrl}
                         target="_blank"
                         rel="noreferrer"
                         className="mt-0.5 inline-flex items-center gap-0.5 text-[9px] text-accent hover:underline"
