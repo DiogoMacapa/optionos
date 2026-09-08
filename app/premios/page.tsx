@@ -13,6 +13,13 @@ const MONTH_NAMES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 
+interface Agg {
+  gross: number;
+  ir: number;
+  net: number;
+  estimated: boolean;
+}
+
 interface RowCalc {
   ir: number;
   net: number;
@@ -28,8 +35,22 @@ function computeRow(op: Operation): RowCalc {
   return { ir: estimatedIr, net: op.premium_received - estimatedIr, estimated: true };
 }
 
-function commissionOf(op: Operation, isMae: boolean): number {
-  if (!isMae) return 0;
+function aggregate(ops: Operation[]): Agg {
+  let gross = 0;
+  let ir = 0;
+  let net = 0;
+  let estimated = false;
+  for (const op of ops) {
+    const r = computeRow(op);
+    gross += op.premium_received;
+    ir += r.ir;
+    net += r.net;
+    if (r.estimated) estimated = true;
+  }
+  return { gross, ir, net, estimated };
+}
+
+function commissionOf(op: Operation): number {
   return computeRow(op).net * (op.commission_pct / 100);
 }
 
@@ -38,37 +59,38 @@ function monthKeyOf(op: Operation): string {
   return raw && raw.length >= 7 ? raw.slice(0, 7) : 'sem-data';
 }
 
-interface OpRow {
-  op: Operation;
-  system: 'diogo' | 'mae';
+interface PairRow {
+  key: string;
+  weekLabel: string;
+  ticker: string;
+  optionType: string;
+  diogoOps: Operation[];
+  maeOps: Operation[];
 }
 
 interface MonthGroup {
   monthKey: string;
   label: string;
-  rows: OpRow[];
+  rows: PairRow[];
 }
 
-interface MonthTotals {
+interface Totals {
   diogoNet: number;
   maeNet: number;
   commission: number;
-  combined: number;
+  total: number;
 }
 
-function totalsOf(rows: OpRow[]): MonthTotals {
+function totalsOfPairs(rows: PairRow[]): Totals {
   let diogoNet = 0;
   let maeNet = 0;
   let commission = 0;
-  for (const { op, system } of rows) {
-    const r = computeRow(op);
-    if (system === 'diogo') diogoNet += r.net;
-    else {
-      maeNet += r.net;
-      commission += commissionOf(op, true);
-    }
+  for (const row of rows) {
+    diogoNet += aggregate(row.diogoOps).net;
+    maeNet += aggregate(row.maeOps).net;
+    commission += row.maeOps.reduce((sum, op) => sum + commissionOf(op), 0);
   }
-  return { diogoNet, maeNet, commission, combined: diogoNet + maeNet + commission };
+  return { diogoNet, maeNet, commission, total: diogoNet + commission };
 }
 
 export default function PremiosCombinadosPage() {
@@ -89,11 +111,14 @@ export default function PremiosCombinadosPage() {
     reload();
   }, []);
 
-  async function toggleCommissionWithdrawn(op: Operation) {
-    const withdrawn = !op.commission_withdrawn_at;
-    setMaeOps((prev) => prev?.map((o) => (o.id === op.id ? { ...o, commission_withdrawn_at: withdrawn ? new Date().toISOString() : null } : o)) ?? null);
+  async function toggleCommissionWithdrawn(maeOpsInRow: Operation[]) {
+    if (maeOpsInRow.length === 0) return;
+    const withdrawn = maeOpsInRow.every((op) => !!op.commission_withdrawn_at);
+    const nextValue = withdrawn ? null : new Date().toISOString();
+    const ids = new Set(maeOpsInRow.map((op) => op.id));
+    setMaeOps((prev) => prev?.map((o) => (ids.has(o.id) ? { ...o, commission_withdrawn_at: nextValue } : o)) ?? null);
     try {
-      await setCommissionWithdrawn(op.id, withdrawn);
+      await Promise.all(maeOpsInRow.map((op) => setCommissionWithdrawn(op.id, !withdrawn)));
     } catch {
       reload();
     }
@@ -102,14 +127,24 @@ export default function PremiosCombinadosPage() {
   const months = useMemo<MonthGroup[]>(() => {
     if (!diogoOps || !maeOps) return [];
 
-    const byMonth = new Map<string, OpRow[]>();
-    function place(op: Operation, system: 'diogo' | 'mae') {
+    const byMonth = new Map<string, Map<string, PairRow>>();
+
+    function place(op: Operation, system: 'diogoOps' | 'maeOps') {
       const mKey = monthKeyOf(op);
-      if (!byMonth.has(mKey)) byMonth.set(mKey, []);
-      byMonth.get(mKey)!.push({ op, system });
+      const weekLabel = op.week_label ?? 'sem semana';
+      const ticker = op.asset?.ticker ?? 'sem ativo';
+      const pairKey = `${weekLabel}|${ticker}|${op.option_type}`;
+
+      if (!byMonth.has(mKey)) byMonth.set(mKey, new Map());
+      const pairs = byMonth.get(mKey)!;
+      if (!pairs.has(pairKey)) {
+        pairs.set(pairKey, { key: pairKey, weekLabel, ticker, optionType: op.option_type, diogoOps: [], maeOps: [] });
+      }
+      pairs.get(pairKey)![system].push(op);
     }
-    for (const op of diogoOps) place(op, 'diogo');
-    for (const op of maeOps) place(op, 'mae');
+
+    for (const op of diogoOps) place(op, 'diogoOps');
+    for (const op of maeOps) place(op, 'maeOps');
 
     return Array.from(byMonth.entries())
       .sort((a, b) => {
@@ -117,30 +152,29 @@ export default function PremiosCombinadosPage() {
         if (b[0] === 'sem-data') return -1;
         return a[0] < b[0] ? 1 : -1;
       })
-      .map(([mKey, rows]) => ({
+      .map(([mKey, pairsMap]) => ({
         monthKey: mKey,
         label: mKey === 'sem-data' ? 'Sem data' : `${MONTH_NAMES[Number(mKey.slice(5, 7)) - 1]} de ${mKey.slice(0, 4)}`,
-        rows: [...rows].sort((a, b) => {
-          const da = a.op.expiration || a.op.opened_at || '';
-          const db = b.op.expiration || b.op.opened_at || '';
+        rows: Array.from(pairsMap.values()).sort((a, b) => {
+          const sampleA = a.diogoOps[0] ?? a.maeOps[0];
+          const sampleB = b.diogoOps[0] ?? b.maeOps[0];
+          const da = sampleA?.expiration || sampleA?.opened_at || '';
+          const db = sampleB?.expiration || sampleB?.opened_at || '';
           return db.localeCompare(da);
         }),
       }));
   }, [diogoOps, maeOps]);
 
   const grandTotal = useMemo(() => {
-    const allRows: OpRow[] = [
-      ...(diogoOps ?? []).map((op) => ({ op, system: 'diogo' as const })),
-      ...(maeOps ?? []).map((op) => ({ op, system: 'mae' as const })),
-    ];
-    return totalsOf(allRows);
-  }, [diogoOps, maeOps]);
+    const allRows = months.flatMap((m) => m.rows);
+    return totalsOfPairs(allRows);
+  }, [months]);
 
   const loading = diogoOps === null || maeOps === null;
 
   return (
     <div className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-8">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-4xl">
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Link href="/escolher-sistema" className="text-faint-foreground hover:text-foreground">
@@ -155,8 +189,9 @@ export default function PremiosCombinadosPage() {
 
         <h1 className="text-xl font-semibold tracking-tight">Prêmios — Diogo + Mãe</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Cada operação na sua própria linha, por mês. Só controle pessoal — não altera nada em nenhum dos dois
-          sistemas.
+          Seu lucro líquido somado à comissão que vem da sua mãe, por operação e por mês. Cada linha é um trade —
+          sua parte e a dela juntas, já que toda operação sua tem uma gêmea na conta dela. Só controle pessoal, não
+          altera nada nos dois sistemas.
         </p>
 
         {error && (
@@ -168,17 +203,15 @@ export default function PremiosCombinadosPage() {
         {!loading && (
           <div className="mt-6 flex flex-col gap-3">
             <div className="overflow-x-auto rounded-xl border border-glass-border bg-glass backdrop-blur-xl">
-              <table className="w-full min-w-[900px] border-collapse text-xs">
+              <table className="w-full min-w-[760px] border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-glass-border bg-white/[0.03] text-[10px] font-bold uppercase tracking-wider text-faint-foreground">
-                    <Th align="left">Semana</Th>
-                    <Th align="left">Sistema / Ativo</Th>
-                    <Th>Bruto</Th>
-                    <Th>IR</Th>
-                    <Th>Líquido</Th>
-                    <Th>Comissão</Th>
+                    <Th align="left">Semana / Ativo</Th>
+                    <Th>Líquido (Diogo)</Th>
+                    <Th>Líquido (Mãe)</Th>
+                    <Th>Comissão (Mãe)</Th>
                     <Th>Sacado</Th>
-                    <Th>Prêmio + Comissão</Th>
+                    <Th>Total (Líquido + Comissão)</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -187,7 +220,7 @@ export default function PremiosCombinadosPage() {
                   ))}
                   {months.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-10 text-center text-sm text-faint-foreground">
+                      <td colSpan={6} className="px-4 py-10 text-center text-sm text-faint-foreground">
                         Nenhuma operação registrada em nenhum dos dois sistemas ainda.
                       </td>
                     </tr>
@@ -196,13 +229,12 @@ export default function PremiosCombinadosPage() {
                 {months.length > 0 && (
                   <tfoot>
                     <tr className="border-t-2 border-primary-accent bg-primary-accent/10 text-sm font-extrabold">
-                      <Td align="left" colSpan={2}>Total geral</Td>
-                      <Td>—</Td>
-                      <Td>—</Td>
-                      <Td><span className="text-foreground">{formatBRL(grandTotal.diogoNet + grandTotal.maeNet)}</span></Td>
+                      <Td align="left">Total geral</Td>
+                      <Td><span className="text-accent">{formatBRL(grandTotal.diogoNet)}</span></Td>
+                      <Td><span className="text-info">{formatBRL(grandTotal.maeNet)}</span></Td>
                       <Td><span className="text-warning">{formatBRL(grandTotal.commission)}</span></Td>
                       <Td>—</Td>
-                      <Td><span className="text-foreground">{formatBRL(grandTotal.combined)}</span></Td>
+                      <Td><span className="text-foreground">{formatBRL(grandTotal.total)}</span></Td>
                     </tr>
                   </tfoot>
                 )}
@@ -211,11 +243,10 @@ export default function PremiosCombinadosPage() {
 
             <p className="text-[11px] text-faint-foreground">
               * Líquido = prêmio bruto − IR, e quando é uma CALL exercida, também soma o ganho ou perda da venda da
-              ação (Strike vs Preço Médio). Em operações ainda abertas, é uma estimativa (15% de IR sobre o prêmio) e
-              ajusta sozinho quando a operação fechar. Comissão = líquido × % configurado na própria operação
-              (normalmente 50%, editável na aba Prêmios de dentro do sistema Mãe), só existe em operações da Mãe.
-              Prêmio + Comissão = Líquido + Comissão da mesma linha (em operações do Diogo, Comissão é sempre 0; em
-              linhas de mês/total, soma o líquido combinado dos dois sistemas com a comissão total da Mãe).
+              ação. Em operações ainda abertas, é uma estimativa (15% de IR) e ajusta sozinho quando fechar. Comissão
+              = líquido da Mãe × % configurado na operação dela (normalmente 50%, editável na aba Prêmios de dentro
+              do sistema Mãe). Total = Líquido (Diogo) + Comissão (Mãe) da mesma linha — é o que você realmente fica
+              no bolso naquele trade, somando os dois lados.
             </p>
           </div>
         )}
@@ -231,80 +262,89 @@ function MonthBlock({
 }: {
   month: MonthGroup;
   isFirst: boolean;
-  onToggleCommission: (op: Operation) => void;
+  onToggleCommission: (maeOps: Operation[]) => void;
 }) {
   const [open, setOpen] = useState(true);
-  const totals = totalsOf(month.rows);
+  const totals = totalsOfPairs(month.rows);
 
   return (
     <>
       {!isFirst && (
         <tr aria-hidden="true">
-          <td colSpan={8} className="h-4 bg-transparent p-0" />
+          <td colSpan={6} className="h-4 bg-transparent p-0" />
         </tr>
       )}
       <tr
         onClick={() => setOpen((o) => !o)}
         className="cursor-pointer border-y border-primary-accent-border bg-white/[0.06] text-sm font-bold hover:bg-white/[0.08]"
       >
-        <Td align="left" colSpan={2}>
+        <Td align="left">
           <span className="flex items-center gap-1.5 py-1">
             {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             {month.label}
           </span>
         </Td>
-        <Td>—</Td>
-        <Td>—</Td>
-        <Td><span className="text-foreground">{formatBRL(totals.diogoNet + totals.maeNet)}</span></Td>
+        <Td><span className="text-accent">{formatBRL(totals.diogoNet)}</span></Td>
+        <Td><span className="text-info">{formatBRL(totals.maeNet)}</span></Td>
         <Td><span className="text-warning">{formatBRL(totals.commission)}</span></Td>
         <Td>—</Td>
-        <Td><span className="text-foreground">{formatBRL(totals.combined)}</span></Td>
+        <Td><span className="text-foreground">{formatBRL(totals.total)}</span></Td>
       </tr>
-      {open && month.rows.map((row) => <OpRowItem key={row.op.id} row={row} onToggleCommission={onToggleCommission} />)}
+      {open && month.rows.map((row) => <PairRowItem key={row.key} row={row} onToggleCommission={onToggleCommission} />)}
     </>
   );
 }
 
-function OpRowItem({ row, onToggleCommission }: { row: OpRow; onToggleCommission: (op: Operation) => void }) {
-  const { op, system } = row;
-  const isMae = system === 'mae';
-  const r = computeRow(op);
-  const commission = commissionOf(op, isMae);
-  const withdrawn = !!op.commission_withdrawn_at;
+function PairRowItem({ row, onToggleCommission }: { row: PairRow; onToggleCommission: (maeOps: Operation[]) => void }) {
+  const d = aggregate(row.diogoOps);
+  const m = aggregate(row.maeOps);
+  const commission = row.maeOps.reduce((sum, op) => sum + commissionOf(op), 0);
+  const hasDiogo = row.diogoOps.length > 0;
+  const hasMae = row.maeOps.length > 0;
+  const withdrawn = hasMae && row.maeOps.every((op) => !!op.commission_withdrawn_at);
+  const sampleOp = row.diogoOps[0] ?? row.maeOps[0];
 
   return (
     <tr className="border-b border-glass-border/60">
       <Td align="left">
-        <span className="pl-5 text-muted-foreground">
-          {op.week_label ?? '—'} <span className="text-faint-foreground">· {formatDate(op.expiration)}</span>
+        <span className="pl-5">
+          <span className="text-muted-foreground">{row.weekLabel}</span>{' '}
+          <span className="font-semibold text-foreground">{row.ticker}</span>{' '}
+          <span className="text-faint-foreground">({row.optionType})</span>
+          {sampleOp?.expiration && <span className="ml-1 text-faint-foreground">· {formatDate(sampleOp.expiration)}</span>}
         </span>
-      </Td>
-      <Td align="left">
-        <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-bold', isMae ? 'bg-info/15 text-info' : 'bg-accent/15 text-accent')}>
-          {isMae ? 'Mãe' : 'Diogo'}
-        </span>
-        <span className="ml-2 font-semibold text-foreground">{op.asset?.ticker ?? '—'}</span>
-        <span className="ml-1 text-faint-foreground">({op.option_type})</span>
       </Td>
       <Td>
-        <span className={isMae ? 'text-info' : 'text-accent'}>
-          {formatBRL(op.premium_received)}
-          {r.estimated && '*'}
-        </span>
+        {hasDiogo ? (
+          <span className="text-accent">
+            {formatBRL(d.net)}
+            {d.estimated && '*'}
+          </span>
+        ) : (
+          '—'
+        )}
       </Td>
-      <Td><span className="text-danger">{formatBRL(r.ir)}</span></Td>
-      <Td><span className={isMae ? 'text-info' : 'text-accent'}>{formatBRL(r.net)}</span></Td>
       <Td>
-        {isMae ? (
+        {hasMae ? (
+          <span className="text-info">
+            {formatBRL(m.net)}
+            {m.estimated && '*'}
+          </span>
+        ) : (
+          '—'
+        )}
+      </Td>
+      <Td>
+        {hasMae ? (
           <span className={cn('font-semibold', withdrawn ? 'text-faint-foreground' : 'text-warning')}>{formatBRL(commission)}</span>
         ) : (
           '—'
         )}
       </Td>
       <Td>
-        {isMae ? (
+        {hasMae ? (
           <button
-            onClick={() => onToggleCommission(op)}
+            onClick={() => onToggleCommission(row.maeOps)}
             className={cn(
               'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium',
               withdrawn ? 'bg-white/[0.04] text-faint-foreground' : 'bg-warning-muted text-warning'
@@ -318,7 +358,7 @@ function OpRowItem({ row, onToggleCommission }: { row: OpRow; onToggleCommission
         )}
       </Td>
       <Td>
-        <span className="font-semibold text-foreground">{formatBRL(r.net + commission)}</span>
+        <span className="font-semibold text-foreground">{formatBRL(d.net + commission)}</span>
       </Td>
     </tr>
   );
@@ -328,18 +368,6 @@ function Th({ children, align = 'center' }: { children: React.ReactNode; align?:
   return <th className={cn('px-2.5 py-2', align === 'left' ? 'text-left' : 'text-center')}>{children}</th>;
 }
 
-function Td({
-  children,
-  align = 'center',
-  colSpan,
-}: {
-  children: React.ReactNode;
-  align?: 'left' | 'center';
-  colSpan?: number;
-}) {
-  return (
-    <td colSpan={colSpan} className={cn('px-2.5 py-1.5 font-tabular', align === 'left' ? 'text-left' : 'text-center')}>
-      {children}
-    </td>
-  );
+function Td({ children, align = 'center' }: { children: React.ReactNode; align?: 'left' | 'center' }) {
+  return <td className={cn('px-2.5 py-1.5 font-tabular', align === 'left' ? 'text-left' : 'text-center')}>{children}</td>;
 }
