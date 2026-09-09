@@ -4,7 +4,7 @@ import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'rec
 import { formatBRL, formatPct, formatDate, cn } from '@/lib/utils';
 
 interface PatrimonyHeroCardProps {
-  currentEquity: number | null;
+  totalPremiums: number | null;
   totalProfit: number;
   successRatePct: number;
   equitySeries: { date: string; value: number }[];
@@ -21,7 +21,7 @@ function HeroTooltip({ active, payload, label }: { active?: boolean; payload?: {
   );
 }
 
-export function PatrimonyHeroCard({ currentEquity, totalProfit, successRatePct, equitySeries, onProfitClick }: PatrimonyHeroCardProps) {
+export function PatrimonyHeroCard({ totalPremiums, totalProfit, successRatePct, equitySeries, onProfitClick }: PatrimonyHeroCardProps) {
   return (
     <div
       className="relative overflow-hidden rounded-2xl border border-primary-accent-border bg-glass-strong px-6 py-5 shadow-[0_0_60px_-15px_var(--accent-glow-strong)] backdrop-blur-xl"
@@ -29,9 +29,9 @@ export function PatrimonyHeroCard({ currentEquity, totalProfit, successRatePct, 
     >
       <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-[11px] uppercase tracking-wide text-primary-accent">Patrimônio atual</div>
+          <div className="text-[11px] uppercase tracking-wide text-primary-accent">Total de Prêmios</div>
           <div className="mt-1 font-tabular text-[28px] font-semibold leading-none text-foreground sm:text-[32px]">
-            {formatBRL(currentEquity)}
+            {formatBRL(totalPremiums)}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
             <button
