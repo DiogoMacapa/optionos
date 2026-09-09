@@ -97,9 +97,6 @@ export function calculateNetProfit({
     premiumReceived > 0 ? Math.round((1 - buybackCost / premiumReceived) * 10000) / 100 : 0;
 
   if (optionType === 'CALL' && exercised) {
-    // Quando exercida, o resultado junta o prêmio da série com o
-    // resultado da venda das ações ao strike (pode ser negativo se
-    // Strike < PM). O IR incide sobre essa soma.
     const irBase = premiumReceived + strikeVsAveragePriceResult;
     const ir = irFrozen ? 0 : irBase > 0 ? irBase * IR_RATE : 0;
     return {
@@ -114,13 +111,11 @@ export function calculateNetProfit({
   const grossResult = premiumReceived - buybackCost - otherCosts;
 
   if (optionType === 'CALL') {
-    // CALL não exercida: IR sempre sobre o prêmio bruto, não sobre o líquido.
     const irBase = premiumReceived;
     const ir = irFrozen ? 0 : irBase > 0 ? irBase * IR_RATE : 0;
     return { grossResult, irBase, ir, netProfit: grossResult - ir, efficiencyPct };
   }
 
-  // PUT: IR sobre o resultado líquido (prêmio - recompra).
   const irBase = grossResult;
   const ir = irFrozen ? 0 : irBase > 0 ? irBase * IR_RATE : 0;
   return { grossResult, irBase, ir, netProfit: grossResult - ir, efficiencyPct };
@@ -156,15 +151,6 @@ export function daysBetween(start: string | Date, end: string | Date): number {
   return Math.max(0, Math.round((e.getTime() - s.getTime()) / 86400000));
 }
 
-// ============================================================
-// Fórmulas de Taxa, Distância e Spread — validadas com a
-// planilha real do usuário. A Taxa usa referências DIFERENTES
-// dependendo do tipo de opção:
-//   - PUT:  Taxa = Prêmio ÷ Strike     (o que importa é a garantia)
-//   - CALL: Taxa = Prêmio ÷ Cotação    (o que importa é o preço de mercado)
-// Distância e Spread são iguais nos dois casos.
-// ============================================================
-
 export function calculateStrikeDistance(quote: number, strike: number): number {
   if (quote === 0) return 0;
   return (quote - strike) / quote;
@@ -193,13 +179,6 @@ export function calculateStockSaleResult(strike: number, averagePrice: number, q
   return (strike - averagePrice) * quantity;
 }
 
-// ============================================================
-// Comissão de gestão (para operações feitas em nome de terceiros,
-// ex: Mãe). O valor sacado é sempre um lançamento manual à parte
-// (withdrawals) — nunca uma fórmula fixa, pois na prática varia
-// (100%, 50%, ou nada) a critério do usuário.
-// ============================================================
-
 export interface CommissionInput {
   netProfit: number;
   commissionPct: number; // 0-100
@@ -215,4 +194,43 @@ export function calculateCommission({ netProfit, commissionPct }: CommissionInpu
     commissionAmount,
     holderNetAfterCommission: Math.round((netProfit - commissionAmount) * 100) / 100,
   };
+}
+
+// ============================================================
+// Lucro líquido + comissão por operação — fonte única usada pela
+// aba Prêmios (dentro de cada sistema), pela página /premios
+// (combinada) e pelo Dashboard/Objetivos. Antes essa fórmula
+// estava duplicada em mais de um arquivo e ficou dessincronizada
+// (um lugar mostrava um valor, outro mostrava outro) — agora só
+// existe aqui, todo o resto importa daqui.
+// ============================================================
+
+export interface OperationNet {
+  ir: number;
+  net: number;
+  estimated: boolean;
+}
+
+export function computeOperationNet(op: {
+  status: string;
+  ir_amount: number | null;
+  net_profit: number | null;
+  premium_received: number;
+}): OperationNet {
+  const isClosed = op.status !== 'aberta';
+  if (isClosed && op.ir_amount !== null && op.net_profit !== null) {
+    return { ir: op.ir_amount, net: op.net_profit, estimated: false };
+  }
+  const estimatedIr = op.premium_received > 0 ? op.premium_received * IR_RATE : 0;
+  return { ir: estimatedIr, net: op.premium_received - estimatedIr, estimated: true };
+}
+
+export function computeOperationCommission(op: {
+  status: string;
+  ir_amount: number | null;
+  net_profit: number | null;
+  premium_received: number;
+  commission_pct: number;
+}): number {
+  return computeOperationNet(op).net * (op.commission_pct / 100);
 }
