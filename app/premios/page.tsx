@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ChevronDown, ChevronRight, TrendingUp, Wallet, Pencil } from 'lucide-react';
 import { cn, formatBRL, formatDate } from '@/lib/utils';
-import { IR_RATE } from '@/lib/calculations/finance';
+import { computeOperationNet, computeOperationCommission } from '@/lib/calculations/finance';
 import { listOperationsForSystem, setCommissionWithdrawn } from '@/lib/supabase/premios-cross-system';
 import type { Operation } from '@/lib/types/database';
 
@@ -27,12 +27,7 @@ interface RowCalc {
 }
 
 function computeRow(op: Operation): RowCalc {
-  const isClosed = op.status !== 'aberta';
-  if (isClosed && op.ir_amount !== null && op.net_profit !== null) {
-    return { ir: op.ir_amount, net: op.net_profit, estimated: false };
-  }
-  const estimatedIr = op.premium_received > 0 ? op.premium_received * IR_RATE : 0;
-  return { ir: estimatedIr, net: op.premium_received - estimatedIr, estimated: true };
+  return computeOperationNet(op);
 }
 
 function aggregate(ops: Operation[]): Agg {
@@ -51,7 +46,7 @@ function aggregate(ops: Operation[]): Agg {
 }
 
 function commissionOf(op: Operation): number {
-  return computeRow(op).net * (op.commission_pct / 100);
+  return computeOperationCommission(op);
 }
 
 function monthKeyOf(op: Operation): string {
