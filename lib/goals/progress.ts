@@ -9,30 +9,15 @@ export interface GoalProgress {
   amountRemaining: number; // Valor Alvo - Valor Atual (pode ser negativo se já superou)
   neededPerMonth: number | null; // amountRemaining ÷ monthsRemaining — só com deadline definido
   recentAvgProfitPerMonth: number | null; // contexto: ritmo histórico recente, não usado no cálculo da meta
+  estimatedMonthsToTarget: number | null; // só para target_type = 'premios_comissao' — projeção pelo ritmo médio histórico
 }
 
-/**
- * Calcula o progresso de um objetivo, lendo os dados que já existem
- * no sistema (Patrimônio Atual, lucro do mês corrente) — sem exigir
- * que o usuário atualize nada manualmente, exceto para metas do tipo
- * 'personalizado', onde current_value é digitado por ele mesmo.
- *
- * "Preciso por mês" é (falta ÷ meses restantes) — uma conta objetiva,
- * sem depender do prêmio médio histórico (que é passado, não previsão
- * de futuro). O prêmio médio recente aparece só como CONTEXTO, para o
- * usuário comparar se seu ritmo atual está perto do que precisa.
- *
- * extraCash: caixa que o usuário tem mas que não veio do resultado
- * das operações (aporte próprio, saldo prévio) — soma SÓ ao progresso
- * de metas do tipo 'patrimonio', sem afetar o Patrimônio Atual do
- * Dashboard (confirmado com o usuário: esse valor é exclusivo de
- * Objetivos).
- */
 export function computeGoalProgress(
   goal: Goal,
   currentEquity: number | null,
   operations: Operation[],
-  extraCash: number = 0
+  extraCash: number = 0,
+  totalPremiosComissaoOverride: number | null = null
 ): GoalProgress {
   let currentValue = 0;
 
@@ -44,6 +29,8 @@ export function computeGoalProgress(
     currentValue = operations
       .filter((o) => o.status !== 'aberta' && o.net_profit !== null && o.closed_at && new Date(o.closed_at) >= monthStart)
       .reduce((sum, o) => sum + (o.net_profit ?? 0), 0);
+  } else if (goal.target_type === 'premios_comissao') {
+    currentValue = totalPremiosComissaoOverride ?? 0;
   } else {
     currentValue = goal.current_value ?? 0;
   }
@@ -58,7 +45,6 @@ export function computeGoalProgress(
   const monthsRemaining = daysRemaining !== null ? Math.max(daysRemaining / 30.44, 1 / 30.44) : null;
   const neededPerMonth = monthsRemaining !== null ? amountRemaining / monthsRemaining : null;
 
-  // Contexto: lucro líquido médio dos últimos 3 meses fechados, só para comparação visual.
   const threeMonthsAgo = new Date();
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
   const recentClosed = operations.filter(
@@ -66,11 +52,37 @@ export function computeGoalProgress(
   );
   const recentAvgProfitPerMonth = recentClosed.length > 0 ? recentClosed.reduce((s, o) => s + (o.net_profit ?? 0), 0) / 3 : null;
 
-  return { goal, currentValue, progressPct, daysRemaining, monthsRemaining, amountRemaining, neededPerMonth, recentAvgProfitPerMonth };
+  let estimatedMonthsToTarget: number | null = null;
+  if (goal.target_type === 'premios_comissao' && operations.length > 0 && currentValue > 0) {
+    const earliestDate = operations.reduce<Date | null>((earliest, o) => {
+      const d = new Date(o.opened_at);
+      return !earliest || d < earliest ? d : earliest;
+    }, null);
+    if (earliestDate) {
+      const monthsSinceStart = Math.max((Date.now() - earliestDate.getTime()) / (30.44 * 86400000), 1 / 30.44);
+      const avgPacePerMonth = currentValue / monthsSinceStart;
+      if (avgPacePerMonth > 0) {
+        estimatedMonthsToTarget = Math.max(0, amountRemaining) / avgPacePerMonth;
+      }
+    }
+  }
+
+  return {
+    goal,
+    currentValue,
+    progressPct,
+    daysRemaining,
+    monthsRemaining,
+    amountRemaining,
+    neededPerMonth,
+    recentAvgProfitPerMonth,
+    estimatedMonthsToTarget,
+  };
 }
 
 export const GOAL_TYPE_LABELS: Record<Goal['target_type'], string> = {
   patrimonio: 'Patrimônio total',
   renda_mensal: 'Renda mensal (mês corrente)',
+  premios_comissao: 'Prêmios + Comissão (quanto tempo vou levar)',
   personalizado: 'Personalizado',
 };
