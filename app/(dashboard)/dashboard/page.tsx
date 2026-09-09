@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { AiAnalysisDialog } from '@/components/shared/ai-analysis-dialog';
 import { MarketStatusBadge } from '@/components/shared/market-status-badge';
 import { useDashboardData, computeKpis, filterByHolder, computeEquitySeries } from '@/lib/hooks/use-dashboard-data';
+import { useTotalPremiosComissao } from '@/lib/hooks/use-total-premios-comissao';
 import { buildPortfolioAnalysisPrompt } from '@/lib/ai/prompt-builder';
 import { formatBRL, formatPct } from '@/lib/utils';
 import {
@@ -56,6 +57,7 @@ export default function DashboardPage() {
 
   const { operations, withdrawals } = filterByHolder(allOperations, holderFilter, allWithdrawals);
   const kpis = computeKpis(operations, strategySettings, withdrawals, commissionEntries, stockPositions);
+  const { total: totalPremiosComissao } = useTotalPremiosComissao(operations);
 
   const closedChronological = [...operations]
     .filter((o) => o.status !== 'aberta' && o.net_profit !== null && o.closed_at)
@@ -199,7 +201,7 @@ export default function DashboardPage() {
       <FridayCloseSummary />
 
       <PatrimonyHeroCard
-        currentEquity={kpis.currentEquity}
+        totalPremiums={totalPremiosComissao}
         totalProfit={kpis.totalProfit}
         successRatePct={kpis.successRatePct}
         equitySeries={equitySeries}
