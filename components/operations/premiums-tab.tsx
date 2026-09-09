@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, Wallet, Pencil, CircleDollarSign } from 'luc
 import { cn, formatBRL, formatDate } from '@/lib/utils';
 import { updateOperationFields } from '@/lib/supabase/queries';
 import { getActiveSystem } from '@/lib/supabase/client';
-import { IR_RATE } from '@/lib/calculations/finance';
+import { computeOperationNet } from '@/lib/calculations/finance';
 import type { Operation } from '@/lib/types/database';
 
 const MONTH_NAMES = [
@@ -25,12 +25,8 @@ interface ComputedRow {
 }
 
 function computeNetPremium(op: Operation): { netPremium: number; estimated: boolean } {
-  const hasFinalData = op.status !== 'aberta' && op.ir_amount !== null && op.net_profit !== null;
-  if (hasFinalData) {
-    return { netPremium: op.net_profit as number, estimated: false };
-  }
-  const estimatedIr = op.premium_received > 0 ? op.premium_received * IR_RATE : 0;
-  return { netPremium: op.premium_received - estimatedIr, estimated: true };
+  const { net, estimated } = computeOperationNet(op);
+  return { netPremium: net, estimated };
 }
 
 function monthKey(op: Operation): string {
