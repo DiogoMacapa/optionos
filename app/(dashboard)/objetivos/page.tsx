@@ -19,6 +19,7 @@ import {
 import { computeGoalProgress, GOAL_TYPE_LABELS } from '@/lib/goals/progress';
 import { GoalProjectionChart } from '@/components/goals/goal-projection-chart';
 import { computeKpis, computeEquitySeries } from '@/lib/hooks/use-dashboard-data';
+import { useTotalPremiosComissao } from '@/lib/hooks/use-total-premios-comissao';
 import type { Goal, Operation, StrategySettings, Withdrawal, CommissionEntry } from '@/lib/types/database';
 
 interface GoalFormState {
@@ -37,6 +38,16 @@ function splitDuration(totalDays: number) {
   const months = Math.floor((totalDays % 365) / 30);
   const days = totalDays - years * 365 - months * 30;
   return { years, months, days };
+}
+
+/** Formata uma quantidade de meses (fracionária) em texto legível — usado na projeção "quanto tempo vou levar". */
+function formatMonthsDuration(totalMonths: number): string {
+  if (totalMonths <= 0) return 'Meta já alcançada';
+  const years = Math.floor(totalMonths / 12);
+  const months = Math.round(totalMonths % 12);
+  if (years === 0) return `${months} ${months === 1 ? 'mês' : 'meses'}`;
+  if (months === 0) return `${years} ${years === 1 ? 'ano' : 'anos'}`;
+  return `${years} ${years === 1 ? 'ano' : 'anos'} e ${months} ${months === 1 ? 'mês' : 'meses'}`;
 }
 
 export default function ObjetivosPage() {
@@ -102,6 +113,7 @@ export default function ObjetivosPage() {
 
   const kpis = computeKpis(operations, strategySettings, withdrawals, commissionEntries);
   const equitySeries = computeEquitySeries(operations, withdrawals);
+  const { total: totalPremiosComissao } = useTotalPremiosComissao(operations);
 
   const [savingExtraCash, setSavingExtraCash] = useState(false);
 
@@ -233,6 +245,7 @@ export default function ObjetivosPage() {
               >
                 <option value="patrimonio">Patrimônio total</option>
                 <option value="renda_mensal">Renda mensal</option>
+                <option value="premios_comissao">Prêmios + Comissão (quanto tempo vou levar)</option>
                 <option value="personalizado">Personalizado</option>
               </select>
             </div>
@@ -275,7 +288,13 @@ export default function ObjetivosPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {goals.map((goal) => {
-          const progress = computeGoalProgress(goal, kpis.currentEquity, operations, strategySettings?.extra_cash_for_goals ?? 0);
+          const progress = computeGoalProgress(
+            goal,
+            kpis.currentEquity,
+            operations,
+            strategySettings?.extra_cash_for_goals ?? 0,
+            totalPremiosComissao
+          );
           const capped = Math.min(progress.progressPct, 100);
           const isDone = progress.progressPct >= 100;
           const duration = progress.daysRemaining !== null && progress.daysRemaining >= 0 ? splitDuration(progress.daysRemaining) : null;
@@ -344,6 +363,23 @@ export default function ObjetivosPage() {
                       placeholder="0,00"
                       className="h-7 w-24 text-xs font-tabular"
                     />
+                  </div>
+                )}
+
+                {goal.target_type === 'premios_comissao' && (
+                  <div className="rounded-lg border border-glass-border bg-glass px-3 py-3 backdrop-blur-xl">
+                    <div className="text-[11px] text-muted-foreground">
+                      No seu ritmo médio desde a primeira operação, você deve alcançar essa meta em:
+                    </div>
+                    {progress.estimatedMonthsToTarget !== null ? (
+                      <div className="mt-1 font-tabular text-lg font-semibold text-primary-accent">
+                        {formatMonthsDuration(progress.estimatedMonthsToTarget)}
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-xs text-faint-foreground">
+                        Ainda não há operações suficientes pra estimar um ritmo.
+                      </div>
+                    )}
                   </div>
                 )}
 
