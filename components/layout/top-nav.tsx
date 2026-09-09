@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutGrid, Layers, Calculator, Settings, TrendingUp, Target, User, Users } from 'lucide-react';
+import { LayoutGrid, Layers, Calculator, Settings, TrendingUp, Target, User, Users, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarketStatusBadge } from '@/components/shared/market-status-badge';
 import { getActiveSystem, setActiveSystem, type SystemProfile } from '@/lib/supabase/client';
@@ -19,9 +19,10 @@ export function TopNav() {
   const pathname = usePathname();
   const [system] = useState<SystemProfile>(() => (typeof window !== 'undefined' ? getActiveSystem() : 'diogo'));
   const isMae = system === 'mae';
+  const isPremios = pathname?.startsWith('/premios');
 
-  function toggleSystem() {
-    setActiveSystem(isMae ? 'diogo' : 'mae');
+  function goToSystem(sys: SystemProfile) {
+    setActiveSystem(sys);
     window.location.href = '/dashboard';
   }
 
@@ -34,14 +35,38 @@ export function TopNav() {
           </div>
           <span className="text-xs font-semibold tracking-tight">OptionOS</span>
         </div>
-        <button
-          onClick={toggleSystem}
-          title="Trocar para o outro sistema"
-          className="flex items-center gap-1 rounded-full bg-badge-bg px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-badge-text"
-        >
-          {isMae ? <Users className="h-3 w-3" /> : <User className="h-3 w-3" />}
-          {isMae ? 'Mãe' : 'Diogo'}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => goToSystem('diogo')}
+            title="Diogo"
+            className={cn(
+              'flex h-7 w-7 items-center justify-center rounded-full',
+              !isPremios && !isMae ? 'bg-accent/15 text-accent' : 'text-faint-foreground'
+            )}
+          >
+            <User className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => goToSystem('mae')}
+            title="Mãe"
+            className={cn(
+              'flex h-7 w-7 items-center justify-center rounded-full',
+              !isPremios && isMae ? 'bg-info/15 text-info' : 'text-faint-foreground'
+            )}
+          >
+            <Users className="h-3.5 w-3.5" />
+          </button>
+          <Link
+            href="/premios"
+            title="Prêmios"
+            className={cn(
+              'flex h-7 w-7 items-center justify-center rounded-full',
+              isPremios ? 'bg-warning-muted text-warning' : 'text-faint-foreground'
+            )}
+          >
+            <Wallet className="h-3.5 w-3.5" />
+          </Link>
+        </div>
       </div>
 
       <header className="sticky top-0 z-40 hidden border-b border-glass-border bg-glass backdrop-blur-xl md:block">
@@ -51,14 +76,41 @@ export function TopNav() {
               <TrendingUp className="h-3.5 w-3.5 text-primary-accent" strokeWidth={2.5} />
             </div>
             <span className="text-sm font-semibold tracking-tight">OptionOS</span>
-            <button
-              onClick={toggleSystem}
-              title="Trocar para o outro sistema"
-              className="ml-1 flex items-center gap-1 rounded-full bg-badge-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-badge-text transition-opacity hover:opacity-70"
-            >
-              {isMae ? <Users className="h-2.5 w-2.5" /> : <User className="h-2.5 w-2.5" />}
-              {isMae ? 'Mãe' : 'Diogo'}
-            </button>
+            <div className="ml-2 flex items-center gap-1">
+              <button
+                onClick={() => goToSystem('diogo')}
+                title="Ir para o Diogo"
+                className={cn(
+                  'flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors',
+                  !isPremios && !isMae ? 'bg-accent/15 text-accent' : 'text-faint-foreground hover:bg-surface-hover hover:text-foreground'
+                )}
+              >
+                <User className="h-2.5 w-2.5" />
+                Diogo
+              </button>
+              <button
+                onClick={() => goToSystem('mae')}
+                title="Ir para a Mãe"
+                className={cn(
+                  'flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors',
+                  !isPremios && isMae ? 'bg-info/15 text-info' : 'text-faint-foreground hover:bg-surface-hover hover:text-foreground'
+                )}
+              >
+                <Users className="h-2.5 w-2.5" />
+                Mãe
+              </button>
+              <Link
+                href="/premios"
+                title="Ver Prêmios combinados"
+                className={cn(
+                  'flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors',
+                  isPremios ? 'bg-warning-muted text-warning' : 'text-faint-foreground hover:bg-surface-hover hover:text-foreground'
+                )}
+              >
+                <Wallet className="h-2.5 w-2.5" />
+                Prêmios
+              </Link>
+            </div>
           </div>
 
           <nav className="flex items-center gap-3">
