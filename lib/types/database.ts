@@ -310,7 +310,7 @@ export interface CalculatorSettings {
 export interface Goal {
   id: string;
   name: string;
-  target_type: 'patrimonio' | 'renda_mensal' | 'personalizado';
+  target_type: 'patrimonio' | 'renda_mensal' | 'premios_comissao' | 'personalizado';
   target_value: number;
   deadline: string | null;
   current_value: number | null; // só relevante para target_type = 'personalizado'
