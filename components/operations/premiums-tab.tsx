@@ -129,7 +129,11 @@ function PremiumRowItem({ row, isMae, onChanged }: { row: ComputedRow; isMae: bo
   async function toggleWithdrawn() {
     setSaving(true);
     try {
-      await updateOperationFields(op.id, { premium_withdrawn_at: withdrawn ? null : new Date().toISOString() });
+      const nextValue = withdrawn ? null : new Date().toISOString();
+      await updateOperationFields(op.id, {
+        premium_withdrawn_at: nextValue,
+        ...(isMae ? { commission_withdrawn_at: nextValue } : {}),
+      });
       onChanged();
     } finally {
       setSaving(false);
