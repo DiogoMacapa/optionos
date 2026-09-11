@@ -100,12 +100,14 @@ function InlineField({
   initialValue,
   onCommit,
   placeholder,
+  highlight,
   width,
   mono = true,
 }: {
   initialValue: string;
   onCommit: (value: string) => void;
   placeholder?: string;
+  highlight?: boolean;
   width?: number;
   mono?: boolean;
 }) {
@@ -121,8 +123,9 @@ function InlineField({
       placeholder={placeholder}
       style={{ width }}
       className={cn(
-        'rounded border border-border bg-surface-elevated px-1.5 py-1 text-center text-[11.5px] text-foreground outline-none',
-        mono && 'font-tabular'
+        'rounded border px-1.5 py-1 text-center text-[11.5px] outline-none',
+        mono && 'font-tabular',
+        highlight ? 'border-accent/50 bg-accent/10 font-bold text-accent' : 'border-border bg-surface-elevated text-foreground'
       )}
     />
   );
@@ -370,7 +373,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                 </Td>
                 <Td width={80}>
                   {editable ? (
-                    <InlineField key={`strike-${op.id}-${r.strike}`} initialValue={formatNumber(r.strike, 2)} onCommit={(v) => saveField(op, { strike: parseBRNumber(v) })} placeholder="0,00" width={56} />
+                    <InlineField key={`strike-${op.id}-${r.strike}`} initialValue={formatNumber(r.strike, 2)} onCommit={(v) => saveField(op, { strike: parseBRNumber(v) })} placeholder="0,00" width={56} highlight />
                   ) : (
                     <span className="font-tabular text-[11.5px] font-semibold text-accent">{formatNumber(r.strike, 2)}</span>
                   )}
