@@ -111,7 +111,7 @@ export default function PremiosCombinadosPage() {
     const withdrawn = maeOpsInRow.every((op) => !!op.commission_withdrawn_at);
     const nextValue = withdrawn ? null : new Date().toISOString();
     const ids = new Set(maeOpsInRow.map((op) => op.id));
-    setMaeOps((prev) => prev?.map((o) => (ids.has(o.id) ? { ...o, commission_withdrawn_at: nextValue } : o)) ?? null);
+    setMaeOps( (prev) => prev?.map((o) => (ids.has(o.id) ? { ...o, commission_withdrawn_at: nextValue, premium_withdrawn_at: nextValue } : o)) ?? null );
     try {
       await Promise.all(maeOpsInRow.map((op) => setCommissionWithdrawn(op.id, !withdrawn)));
     } catch {
