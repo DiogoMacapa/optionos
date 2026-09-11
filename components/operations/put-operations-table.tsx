@@ -101,6 +101,7 @@ function InlineField({
   onCommit,
   placeholder,
   danger,
+  highlight,
   width,
   mono = true,
 }: {
@@ -108,6 +109,7 @@ function InlineField({
   onCommit: (value: string) => void;
   placeholder?: string;
   danger?: boolean;
+  highlight?: boolean;
   width?: number;
   mono?: boolean;
 }) {
@@ -125,7 +127,11 @@ function InlineField({
       className={cn(
         'rounded border px-1.5 py-1 text-center text-[11.5px] outline-none',
         mono && 'font-tabular',
-        danger ? 'border-danger/60 bg-danger-muted text-danger' : 'border-border bg-surface-elevated text-foreground'
+        danger
+          ? 'border-danger/60 bg-danger-muted text-danger'
+          : highlight
+            ? 'border-accent/50 bg-accent/10 font-bold text-accent'
+            : 'border-border bg-surface-elevated text-foreground'
       )}
     />
   );
@@ -423,6 +429,7 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                       placeholder="0,00"
                       width={56}
                       danger={r.isExpensive}
+                      highlight
                     />
                   ) : (
                     <span className={cn('font-tabular text-[11.5px] font-semibold', r.isExpensive ? 'text-danger' : 'text-accent')}>
