@@ -143,6 +143,7 @@ export async function updateOperationFields(
       | 'counts_toward_equity'
       | 'delta_at_open'
       | 'premium_withdrawn_at'
+      | 'commission_withdrawn_at'
       | 'commission_pct'
     >
   >
