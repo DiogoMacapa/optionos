@@ -57,7 +57,7 @@ export default function DashboardPage() {
 
   const { operations, withdrawals } = filterByHolder(allOperations, holderFilter, allWithdrawals);
   const kpis = computeKpis(operations, strategySettings, withdrawals, commissionEntries, stockPositions);
-  const { total: totalPremiosComissao } = useTotalPremiosComissao(operations);
+  const { total: totalPremiosComissao, totalSacado } = useTotalPremiosComissao(operations);
 
   const closedChronological = [...operations]
     .filter((o) => o.status !== 'aberta' && o.net_profit !== null && o.closed_at)
@@ -228,12 +228,7 @@ export default function DashboardPage() {
           onClick={() => setDetailKind('premiums')}
         />
         <KpiCard label="Total de IR Pago" value={formatBRL(kpis.totalIrPaid)} icon={Receipt} accent="danger" />
-        <KpiCard
-          label="Total Sacado"
-          value={formatBRL(kpis.totalWithdrawn)}
-          icon={PiggyBank}
-          onClick={() => setDetailKind('withdrawals')}
-        />
+        <KpiCard label="Total Sacado" value={formatBRL(totalSacado)} icon={PiggyBank} />
         <KpiCard label="Capital Comprometido" value={formatBRL(kpis.committedCapital)} icon={Lock} />
         <KpiCard
           label="Operações Abertas"
