@@ -1,0 +1,16 @@
+name: Supabase Keepalive
+
+on:
+  schedule:
+    - cron: '0 12 */3 * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API (OptionOS)
+        run: |
+          curl -sf "https://emmowhkrnaexkscsmejw.supabase.co/rest/v1/assets?select=id&limit=1" \
+            -H "apikey: sb_publishable_oK_nR0hmghgoEKIC-p5gnw_LjFypnou" \
+            -o /dev/null -w "HTTP status: %{http_code}\n"
