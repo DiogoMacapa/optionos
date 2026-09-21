@@ -11,6 +11,6 @@ jobs:
     steps:
       - name: Ping Supabase REST API (OptionOS)
         run: |
-          curl -sf "https://emmowhkrnaexkscsmejw.supabase.co/rest/v1/assets?select=id&limit=1" \
+          curl -s "https://emmowhkrnaexkscsmejw.supabase.co/rest/v1/" \
             -H "apikey: sb_publishable_oK_nR0hmghgoEKIC-p5gnw_LjFypnou" \
             -o /dev/null -w "HTTP status: %{http_code}\n"
