@@ -53,6 +53,25 @@ function calcCallRow(op: Operation, averagePrice: number | null, irFrozen: boole
   const buybackPerShare = op.buyback_premium;
   const totalBuyback = buybackPerShare !== null && buybackPerShare !== undefined ? round2(buybackPerShare * op.quantity) : null;
 
+  // Projeção "e se for exercida" — só aparece numa coluna separada, NUNCA
+  // sobrescreve Resultado/IR/Lucro Final oficiais (que continuam exigindo
+  // Exercido = Sim pra considerar a valorização). Também não entra em
+  // nenhum total do sistema (Dashboard, Objetivos etc. usam a estimativa
+  // simples de sempre pra operação aberta) — é só um "e se" visual, pra
+  // avisar antes de você marcar como exercida de verdade, inclusive
+  // quando resultaria em prejuízo (Strike < PM).
+  const isInTheMoney = quote !== null && quote !== undefined && quote > strike;
+  const projectedIfExercised =
+    !exercised && op.status === 'aberta' && isInTheMoney && averagePrice !== null
+      ? calculateNetProfit({
+          optionType: 'CALL',
+          premiumReceived: totalPremium,
+          exercised: true,
+          strikeVsAveragePriceResult: calculateStockSaleResult(strike, averagePrice, op.quantity),
+          irFrozen,
+        }).netProfit
+      : null;
+
   let ir: number | null = null;
   let netProfit: number | null = null;
   let resultado: number | null = null;
@@ -93,7 +112,7 @@ function calcCallRow(op: Operation, averagePrice: number | null, irFrozen: boole
     efficiency = op.efficiency_pct ?? null;
   }
 
-  return { strike, quote, premium, spread, distance, rate, lucroPrejuizoPorAcao, totalPremium, totalBuyback, resultado, ir, netProfit, efficiency, isEstimate };
+  return { strike, quote, premium, spread, distance, rate, lucroPrejuizoPorAcao, totalPremium, totalBuyback, resultado, ir, netProfit, efficiency, isEstimate, projectedIfExercised };
 }
 
 function InlineField({
@@ -264,6 +283,7 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
             <Th>Spread</Th>
             <Th>PM</Th>
             <Th>Lucro/Prejuízo</Th>
+            <Th width={110}>Projeção (Se Exercida)</Th>
             <Th>Distância</Th>
             <Th width={144}>Risco</Th>
             <Th width={100}>Recomendação</Th>
@@ -388,6 +408,18 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                   <span className={cn('font-tabular text-[11.5px]', (r.lucroPrejuizoPorAcao ?? 0) >= 0 ? 'text-accent' : 'text-danger')}>
                     {r.lucroPrejuizoPorAcao !== null ? formatNumber(round2(r.lucroPrejuizoPorAcao * op.quantity), 2) : '—'}
                   </span>
+                </Td>
+                <Td width={110}>
+                  {r.projectedIfExercised !== null ? (
+                    <span
+                      className={cn('font-tabular text-[11.5px] italic opacity-80', r.projectedIfExercised >= 0 ? 'text-accent' : 'text-danger')}
+                      title="Projeção — assume que essa opção será exercida (está dentro do dinheiro). Não entra em nenhum total do sistema; só vira oficial quando você marcar Exercido = Sim."
+                    >
+                      {formatBRL(r.projectedIfExercised)}*
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-faint-foreground">—</span>
+                  )}
                 </Td>
                 <Td>
                   <span className="font-tabular text-[11.5px] text-muted-foreground">{r.distance !== null ? formatPct(r.distance * 100, 2) : '—'}</span>
