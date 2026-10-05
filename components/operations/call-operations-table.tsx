@@ -280,11 +280,11 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
             <Th width={80}>Prêmio Venda</Th>
             <Th>Total Prêmio</Th>
             <Th width={80}>Strike</Th>
-            <Th>Spread</Th>
             <Th>PM</Th>
             <Th>Lucro/Prejuízo</Th>
             <Th width={110}>Projeção (Se Exercida)</Th>
             <Th>Distância</Th>
+            <Th>Spread</Th>
             <Th width={144}>Risco</Th>
             <Th width={100}>Recomendação</Th>
             <Th>Taxa</Th>
@@ -399,9 +399,6 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                   )}
                 </Td>
                 <Td>
-                  <span className="font-tabular text-[11.5px] text-muted-foreground">{r.spread !== null ? formatNumber(r.spread, 2) : '—'}</span>
-                </Td>
-                <Td>
                   <span className="font-tabular text-[11.5px] text-foreground">{averagePrice !== null ? formatNumber(averagePrice, 2) : '—'}</span>
                 </Td>
                 <Td>
@@ -423,6 +420,9 @@ export function CallOperationsTable({ operations, withdrawalsByOperation, irFroz
                 </Td>
                 <Td>
                   <span className="font-tabular text-[11.5px] text-muted-foreground">{r.distance !== null ? formatPct(r.distance * 100, 2) : '—'}</span>
+                </Td>
+                <Td>
+                  <span className="font-tabular text-[11.5px] text-muted-foreground">{r.spread !== null ? formatNumber(r.spread, 2) : '—'}</span>
                 </Td>
                 <Td width={144}>
                   <ExerciseRiskGauge strike={r.strike} quote={r.quote} optionType="CALL" />
