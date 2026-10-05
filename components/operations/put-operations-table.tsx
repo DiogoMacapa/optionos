@@ -257,10 +257,10 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
             <Th>Total Prêmio</Th>
             <Th width={80}>Strike</Th>
             <Th>Distância do strike</Th>
+            <Th>Spread</Th>
             <Th width={144}>Risco</Th>
             <Th width={100}>Recomendação</Th>
             <Th width={130}>Teto</Th>
-            <Th>Spread</Th>
             <Th>Garantia</Th>
             <Th width={100}>Caixa</Th>
             <Th>Tem Cobertura?</Th>
@@ -444,6 +444,10 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                   </span>
                 </Td>
 
+                <Td>
+                  <span className="font-tabular text-[11.5px] text-muted-foreground">{r.spread !== null ? formatNumber(r.spread, 2) : '—'}</span>
+                </Td>
+
                 <Td width={144}>
                   <ExerciseRiskGauge strike={r.strike} quote={r.quote} optionType="PUT" />
                 </Td>
@@ -463,10 +467,6 @@ export function PutOperationsTable({ operations, withdrawalsByOperation, irFroze
                       width={48}
                     />
                   </div>
-                </Td>
-
-                <Td>
-                  <span className="font-tabular text-[11.5px] text-muted-foreground">{r.spread !== null ? formatNumber(r.spread, 2) : '—'}</span>
                 </Td>
 
                 <Td>
